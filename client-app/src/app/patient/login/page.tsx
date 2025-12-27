@@ -13,12 +13,28 @@ export default function PatientLoginPage() {
 	const router = useRouter();
 	const [countryCode, setCountryCode] = useState("+91");
 	const [phone, setPhone] = useState("");
+  const [error, setError] = useState(false);
 
 	const onSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
+    setError(false);
 		const trimmed = phone.replace(/\D/g, "");
-		if (!trimmed) return;
+    console.log(trimmed);
+		if (trimmed !== phone || trimmed.length < 10) {
+      setError(true);
+      return;
+    }
 		router.push("/patient/verify-otp");
+	};
+
+	const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPhone(e.target.value);
+		const digits = e.target.value.replace(/\D/g, "");
+		if (digits !== e.target.value) {
+			setError(true);
+			return;
+		}
+		setError(false);
 	};
 
 	return (
@@ -44,11 +60,11 @@ export default function PatientLoginPage() {
 									Welcome Back
 								</h1>
 								<p className="text-slate-500 dark:text-slate-400 text-base">
-									Enter your mobile number to access appointments and queue status.
+									Enter your mobile number to login.
 								</p>
 							</div>
 
-							<form onSubmit={onSubmit} className="flex flex-col gap-6 mb-8">
+							<form onSubmit={onSubmit} className="flex flex-col gap-6 mb-0">
 								<div className="flex flex-col sm:flex-row gap-4">
 									<label className="flex flex-col w-full sm:w-[120px]">
 										<span className="text-slate-900 dark:text-slate-200 text-sm font-semibold pb-2">
@@ -61,6 +77,7 @@ export default function PatientLoginPage() {
 												placeholder="+1"
 												type="text"
 												value={countryCode}
+                        disabled
 												onChange={(e) => setCountryCode(e.target.value)}
 											/>
 										</div>
@@ -72,14 +89,18 @@ export default function PatientLoginPage() {
 										</span>
 										<div className="relative">
 											<SmartphoneIcon className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none text-lg" />
-											<input
-												className="form-input w-full rounded-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-green-600/20 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:border-green-600 h-12 placeholder:text-slate-400 pl-10 pr-3 text-base transition-all"
-												placeholder="(555) 000-0000"
-												type="tel"
-												value={phone}
-												onChange={(e) => setPhone(e.target.value)}
-											/>
+												<input
+														className="form-input w-full rounded-lg text-slate-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-green-600/20 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:border-green-600 h-12 placeholder:text-slate-400 pl-10 pr-3 text-base transition-all"
+														placeholder="0000000000"
+														type="tel"
+														inputMode="numeric"
+														pattern="[0-9]*"
+														maxLength={10}
+														value={phone}
+														onChange={handlePhoneChange}
+												/>
 										</div>
+                    {error && <p className="text-red-600 text-sm ml-auto mr-auto">Please enter a valid mobile number.</p>}
 									</label>
 								</div>
 
@@ -91,7 +112,6 @@ export default function PatientLoginPage() {
 									<ArrowForwardIcon className="material-symbols-outlined ml-2 text-xl" />
 								</button>
 							</form>
-
 							<div className="mt-6 flex flex-col items-center gap-4">
 								<p className="text-slate-500 dark:text-slate-400 text-sm text-center">
 									<a className="hover:text-green-600 underline transition-colors" href="#">
