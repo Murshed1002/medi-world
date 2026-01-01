@@ -1,9 +1,7 @@
-function Home() {
-    return (
-        <>
-         hello, world!
-        </>
-    );
+"use client";
+import HomePageView from "./HomePageView";
+
+export default function PatientHomePage() {
+  return <HomePageView />;
 }
 
-export default Home;
