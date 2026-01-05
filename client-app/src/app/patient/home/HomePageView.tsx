@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import HomeHeader from "./components/HomeHeader";
 import HomeQuickActions from "./components/HomeQuickActions";
 import HomeQueueStatus from "./components/HomeQueueStatus";
 import HomeAppointments from "./components/HomeAppointments";
@@ -56,7 +55,6 @@ export default function HomePageView() {
 
 	return (
 		<div className="bg-gray-50 dark:bg-[#101922] text-[#0d141b] dark:text-slate-100 min-h-screen flex flex-col">
-			<HomeHeader nav={nav} avatarUrl={mock.avatarUrl} />
 
 			<main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-10 py-8 flex flex-col gap-10">
 				<section className="flex flex-col gap-2">

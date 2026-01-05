@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Doctor } from "./types";
-import DoctorsHeader from "./components/DoctorsHeader";
 import DoctorsSearchBar from "./components/DoctorsSearchBar";
 import DoctorsFilters from "./components/DoctorsFilters";
 import DoctorsGrid from "./components/DoctorsGrid";
@@ -212,7 +211,6 @@ export default function DoctorsPageView() {
 
   return (
     <div className="bg-background-light dark:bg-background-dark font-display text-text-main dark:text-gray-100 antialiased min-h-screen flex flex-col">
-      <DoctorsHeader nav={nav} />
 
       {/* Main */}
       <main className="grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import VerifyOtpHeader from "@/app/patient/verify-otp/components/VerifyOtpHeader";
 import VerifyOtpForm from "@/app/patient/verify-otp/components/VerifyOtpForm";
 import VerifyOtpFooter from "@/app/patient/verify-otp/components/VerifyOtpFooter";
 import LockIcon from "@mui/icons-material/Lock";
@@ -82,8 +81,6 @@ export default function VerifyOtpPageView() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 text-slate-900 dark:bg-[#101922] dark:text-slate-100">
-      <VerifyOtpHeader />
-
       <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8">
         <div className="w-full max-w-lg bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden relative">
           <VerifyOtpForm

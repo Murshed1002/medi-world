@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import AppointmentHeader from "./components/AppointmentHeader";
 import AppointmentBreadcrumbs from "./components/AppointmentBreadcrumbs";
 import AppointmentMainCard from "./components/AppointmentMainCard";
 import AppointmentBottomLinks from "./components/AppointmentBottomLinks";
@@ -56,8 +55,6 @@ export default function AppointmentDetailsPageView() {
 
   return (
     <div className="bg-background-light dark:bg-background-dark text-text-main dark:text-white font-display min-h-screen flex flex-col overflow-x-hidden transition-colors">
-      <AppointmentHeader avatarUrl={mockAppointment.userAvatar} nav={nav} />
-
       <main className="grow w-full px-4 py-6 md:px-8 lg:px-0 lg:py-10">
         <div className="mx-auto max-w-4xl flex flex-col gap-6">
           <AppointmentBreadcrumbs nav={nav} />

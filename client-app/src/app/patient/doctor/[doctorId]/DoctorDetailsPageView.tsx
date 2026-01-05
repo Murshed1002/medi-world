@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import DoctorHeader from "@/app/patient/doctor/[doctorId]/components/DoctorHeader";
 import DoctorBreadcrumbs from "@/app/patient/doctor/[doctorId]/components/DoctorBreadcrumbs";
 import DoctorProfileCard from "@/app/patient/doctor/[doctorId]/components/DoctorProfileCard";
 import DoctorStats from "@/app/patient/doctor/[doctorId]/components/DoctorStats";
@@ -49,7 +48,6 @@ export default function DoctorDetailsPageView() {
 
   return (
     <div className="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
-      <DoctorHeader nav={nav} />
 
       <main className="grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <DoctorBreadcrumbs items={["Home", mockDoctor.specialty, mockDoctor.name]} />

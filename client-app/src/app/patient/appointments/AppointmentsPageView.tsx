@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import AppointmentsHeader from "@/app/patient/appointments/components/AppointmentsHeader";
 import AppointmentsFilters from "@/app/patient/appointments/components/AppointmentsFilters";
 import AppointmentsTable, { AppointmentRow } from "@/app/patient/appointments/components/AppointmentsTable";
 
@@ -77,7 +76,6 @@ export default function AppointmentsPageView() {
 
   return (
     <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display min-h-screen flex flex-col">
-      <AppointmentsHeader nav={nav} user={{ name: mockUser.name, idText: mockUser.idText, avatarUrl: mockUser.avatarUrl }} />
 
       <main className="grow w-full">
         <div className="mx-auto max-w-7xl px-6 py-8 flex flex-col gap-6">
