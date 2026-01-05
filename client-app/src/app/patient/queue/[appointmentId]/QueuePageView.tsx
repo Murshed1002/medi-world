@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import QueueHeader from "./components/QueueHeader";
 import QueueAlert from "./components/QueueAlert";
 import QueueTokenCard from "./components/QueueTokenCard";
 import QueueBreakNotice from "./components/QueueBreakNotice";
@@ -33,8 +32,6 @@ export default function QueuePageView() {
 
   return (
     <div className="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display min-h-screen flex flex-col">
-      <QueueHeader nav={nav} />
-
       <main className="grow w-full">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">

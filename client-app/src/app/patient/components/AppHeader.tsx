@@ -29,7 +29,7 @@ export default function AppHeader({ user }: { user?: User }) {
   ];
 
   return (
-    <header className="bg-white dark:bg-[#1a2632] border-b border-slate-200 dark:border-slate-700 z-20 shrink-0">
+    <header className="sticky top-0 z-30 bg-white/90 dark:bg-[#1a2632]/90 backdrop-blur-sm border-b border-slate-200 dark:border-slate-700 shrink-0">
       <div className="w-full max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary">
