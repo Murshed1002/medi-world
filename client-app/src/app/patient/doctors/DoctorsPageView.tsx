@@ -208,7 +208,6 @@ export default function DoctorsPageView() {
   }, [query, location, sort, availability, availableTodayChip, selectedSpecs, videoConsult, femaleDoctor, priceMax]);
 
   const onProfile = (id: string) => router.push(`/patient/doctor/${id}`);
-  const onBook = (id: string) => router.push(`/patient/book/${id}`);
   const nav = (path: string) => router.push(path);
 
   return (
@@ -251,7 +250,7 @@ export default function DoctorsPageView() {
             <button className="text-primary text-sm font-bold">Sort</button>
           </div>
 
-          <DoctorsGrid doctors={filteredDoctors} onProfile={onProfile} onBook={onBook} />
+          <DoctorsGrid doctors={filteredDoctors} onProfile={onProfile} />
         </section>
       </main>
 

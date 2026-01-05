@@ -29,12 +29,12 @@ const mock = {
 			day: 24,
 			doctorName: "Dr. Sarah Smith",
 			tag: "Today",
-			tagTone: "green",
+			tagTone: "green" as const,
 			specialty: "Cardiology",
 			title: "General Checkup",
 			time: "10:30 AM",
 			location: "Room 304",
-			status: "scheduled",
+			status: "scheduled" as const,
 		},
 		{
 			id: "appt-2",
@@ -45,7 +45,7 @@ const mock = {
 			title: "Consultation",
 			time: "04:15 PM",
 			location: "Online Meeting",
-			status: "pending",
+			status: "pending" as const,
 		},
 	],
 };

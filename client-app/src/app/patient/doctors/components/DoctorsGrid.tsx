@@ -6,11 +6,9 @@ import type { Doctor } from "../types";
 export default function DoctorsGrid({
   doctors,
   onProfile,
-  onBook,
 }: {
   doctors: Doctor[];
   onProfile: (id: string) => void;
-  onBook: (id: string) => void;
 }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -68,18 +66,12 @@ export default function DoctorsGrid({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mt-4">
+          <div className="mt-4">
             <button
               onClick={() => onProfile(d.id)}
-              className="w-full py-2 px-2 rounded-lg border border-primary text-primary font-bold text-sm hover:bg-gray-100 transition-colors"
-            >
-              Profile
-            </button>
-            <button
-              onClick={() => onBook(d.id)}
               className="w-full py-2 px-2 rounded-lg bg-green-600 text-white font-bold text-sm hover:bg-green-700 hover:shadow-md transition-all"
             >
-              Book
+              View Profile
             </button>
           </div>
         </div>

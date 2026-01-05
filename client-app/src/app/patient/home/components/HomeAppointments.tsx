@@ -3,6 +3,7 @@ import ScheduleIcon from "@mui/icons-material/Schedule";
 import VideocamIcon from "@mui/icons-material/Videocam";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty";
+import { useRouter } from "next/navigation";
 
 export type Appointment = {
   id: string;
@@ -19,6 +20,7 @@ export type Appointment = {
 };
 
 export default function HomeAppointments({ appointments }: { appointments: Appointment[] }) {
+    const router = useRouter();
   return (
     <div className="flex flex-col gap-3">
       {appointments.map((a) => (
@@ -78,7 +80,7 @@ export default function HomeAppointments({ appointments }: { appointments: Appoi
                 <button className="flex-1 md:flex-none h-10 px-5 rounded-lg border border-[#cfdbe7] dark:border-slate-600 text-sm font-bold text-[#0d141b] dark:text-white hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                   Reschedule
                 </button>
-                <button className="flex-1 md:flex-none h-10 px-5 rounded-lg bg-green-600 text-white hover:bg-green-700 text-sm font-bold transition-colors shadow-sm">
+                <button onClick={() => router.push(`/patient/appointment/${a.id}`)}  className="flex-1 md:flex-none h-10 px-5 rounded-lg bg-green-600 text-white hover:bg-green-700 text-sm font-bold transition-colors shadow-sm">
                   Check Details
                 </button>
               </>
