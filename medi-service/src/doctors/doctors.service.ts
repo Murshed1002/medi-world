@@ -171,6 +171,24 @@ export class DoctorsService {
             clinics: true,
           },
         },
+        doctor_reviews: {
+          take: 10,
+          orderBy: {
+            created_at: 'desc',
+          },
+          include: {
+            patients: {
+              select: {
+                full_name: true,
+              },
+            },
+          },
+        },
+        doctor_slots: {
+          orderBy: {
+            day_of_week: 'asc',
+          },
+        },
       },
     });
 
@@ -180,30 +198,226 @@ export class DoctorsService {
 
     const primaryClinic = doctor.doctor_clinics[0]?.clinics;
     const consultationFee = doctor.doctor_clinics[0]?.consultation_fee || 0;
+    const bookingFee = doctor.doctor_clinics[0]?.booking_fee || 0;
+
+    // Get total patients treated (count of completed appointments)
+    const totalPatients = await this.prisma.appointments.count({
+      where: {
+        doctor_id: id,
+        status: 'COMPLETED',
+      },
+    });
+
+    // Get today's queue information
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const todayAppointments = await this.prisma.appointments.findMany({
+      where: {
+        doctor_id: id,
+        appointment_date: {
+          gte: today,
+          lt: tomorrow,
+        },
+        status: {
+          in: ['CONFIRMED', 'PAYMENT_PENDING', 'WAITING'],
+        },
+      },
+      orderBy: {
+        slot_start_time: 'asc',
+      },
+    });
+
+    // Calculate queue status
+    const currentTime = new Date();
+    const waitingInQueue = todayAppointments.filter((apt) => {
+      const aptTime = new Date(apt.appointment_date);
+      // Convert TIME to string format (HH:MM:SS or HH:MM)
+      const timeStr = apt.slot_start_time.toString();
+      const [hours, minutes] = timeStr.split(':');
+      aptTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+      return aptTime <= currentTime && apt.status !== 'COMPLETED';
+    }).length;
+
+    const avgConsultationTime = 15; // minutes per patient
+    const estimatedWaitTime = waitingInQueue * avgConsultationTime;
+
+    // Get next available slot
+    const nextAvailableSlot = await this.getNextAvailableSlot(id);
+
+    // Transform reviews
+    const reviews = doctor.doctor_reviews.map((review) => ({
+      id: review.id,
+      patientName: review.is_anonymous
+        ? 'Anonymous'
+        : review.patients?.full_name || 'Anonymous',
+      rating: parseFloat(review.rating.toString()),
+      comment: review.review_text || '',
+      date: review.created_at,
+      isVerified: review.is_verified || false,
+      helpfulCount: review.helpful_count || 0,
+    }));
+
+    // Transform doctor slots to clinic hours format
+    const dayOrder = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
+    const clinicHours = doctor.doctor_slots
+      .filter(slot => slot.clinic_id === primaryClinic?.id)
+      .map(slot => {
+        // Convert 24h to 12h format - handles both Date objects and strings
+        const formatTime = (time: any) => {
+          let hours: number;
+          let minutes: string;
+          
+          if (time instanceof Date) {
+            // Use UTC methods to avoid timezone conversion issues
+            hours = time.getUTCHours();
+            minutes = time.getUTCMinutes().toString().padStart(2, '0');
+          } else {
+            const timeStr = time.toString();
+            const parts = timeStr.split(':');
+            if (parts.length < 2) return timeStr;
+            hours = parseInt(parts[0]);
+            minutes = parts[1];
+          }
+          
+          const ampm = hours >= 12 ? 'PM' : 'AM';
+          const h12 = hours % 12 || 12;
+          return `${h12}:${minutes} ${ampm}`;
+        };
+
+        return {
+          day: slot.day_of_week.charAt(0) + slot.day_of_week.slice(1).toLowerCase(),
+          value: `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`,
+        };
+      })
+      .sort((a, b) => {
+        const aIndex = dayOrder.indexOf(a.day.toUpperCase());
+        const bIndex = dayOrder.indexOf(b.day.toUpperCase());
+        return aIndex - bIndex;
+      });
 
     return {
       id: doctor.id,
       name: doctor.full_name,
       specialization: doctor.specialization || 'General Physician',
       rating: doctor.rating ? parseFloat(doctor.rating.toString()) : 0,
-      reviews: doctor.reviews_count || 0,
+      reviewsCount: doctor.reviews_count || 0,
       fee: consultationFee ? parseFloat(consultationFee.toString()) : 0,
+      bookingFee: bookingFee ? parseFloat(bookingFee.toString()) : 0,
       clinic: primaryClinic
         ? `${primaryClinic.name}, ${primaryClinic.address || ''}, ${primaryClinic.city || ''}`
         : 'Clinic information not available',
+      clinicName: primaryClinic?.name || 'Clinic',
+      clinicAddress: primaryClinic?.address || '',
+      clinicCity: primaryClinic?.city || '',
+      clinicLatitude: primaryClinic?.latitude ? parseFloat(primaryClinic.latitude.toString()) : null,
+      clinicLongitude: primaryClinic?.longitude ? parseFloat(primaryClinic.longitude.toString()) : null,
+      clinicHours,
       avatarUrl: doctor.profile_image_url || this.getDefaultAvatar(doctor.gender),
       city: primaryClinic?.city || null,
       supportsVideo: doctor.supports_video || false,
       isFemale: doctor.gender === 'FEMALE',
       bio: doctor.bio || 'Experienced medical professional dedicated to providing quality care.',
       qualifications: doctor.registration_number || 'MBBS, MD',
-      experience_years: doctor.experience_years || 0,
+      experienceYears: doctor.experience_years || 0,
+      totalPatients,
       email: doctor.auth_users?.email,
       phone: doctor.auth_users?.phone_number,
+      nextAvailableSlot,
+      queueStatus: {
+        waiting: waitingInQueue,
+        estimatedWaitTime,
+      },
+      reviews,
     };
   }
 
   // Removed getOrderBy - sorting applied in-memory after transformation
+
+  async getAvailableSlots(doctorId: string, dateStr: string): Promise<string[]> {
+    const selectedDate = new Date(dateStr);
+    selectedDate.setHours(0, 0, 0, 0);
+    
+    const dayOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][selectedDate.getDay()];
+    
+    // Get doctor's schedule for the selected day
+    const doctorSlot = await this.prisma.doctor_slots.findFirst({
+      where: {
+        doctor_id: doctorId,
+        day_of_week: dayOfWeek,
+      },
+    });
+
+    if (!doctorSlot) {
+      return [];
+    }
+
+    // Get existing appointments for this day
+    const nextDay = new Date(selectedDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+    
+    const existingAppointments = await this.prisma.appointments.findMany({
+      where: {
+        doctor_id: doctorId,
+        appointment_date: {
+          gte: selectedDate,
+          lt: nextDay,
+        },
+        status: {
+          in: ['CONFIRMED', 'PAYMENT_PENDING', 'WAITING'],
+        },
+      },
+    });
+
+    // Generate all possible slots based on start_time, end_time, and slot_duration
+    const slots: string[] = [];
+    const duration = doctorSlot.slot_duration_minutes;
+
+    // Handle TIME type which comes as Date object from Prisma
+    const getTimeComponents = (timeValue: any): [number, number] => {
+      if (timeValue instanceof Date) {
+        // Use UTC methods to avoid timezone conversion issues
+        return [timeValue.getUTCHours(), timeValue.getUTCMinutes()];
+      }
+      const timeStr = timeValue.toString();
+      const [hours, minutes] = timeStr.split(':').map(Number);
+      return [hours, minutes];
+    };
+
+    const [startHours, startMinutes] = getTimeComponents(doctorSlot.start_time);
+    const [endHours, endMinutes] = getTimeComponents(doctorSlot.end_time);
+
+    let currentMinutes = startHours * 60 + startMinutes;
+    const endTotalMinutes = endHours * 60 + endMinutes;
+
+    while (currentMinutes + duration <= endTotalMinutes) {
+      const hours = Math.floor(currentMinutes / 60);
+      const minutes = currentMinutes % 60;
+      
+      // Format to 12-hour time
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      const displayMinutes = minutes.toString().padStart(2, '0');
+      const timeSlot = `${displayHours}:${displayMinutes} ${ampm}`;
+
+      // Check if this slot is already booked
+      const isBooked = existingAppointments.some(apt => {
+        const aptTime = apt.slot_start_time.toString();
+        const [aptHours, aptMinutes] = aptTime.split(':').map(Number);
+        return aptHours === hours && aptMinutes === minutes;
+      });
+
+      if (!isBooked) {
+        slots.push(timeSlot);
+      }
+
+      currentMinutes += duration;
+    }
+
+    return slots;
+  }
 
   private async getNextAvailableSlot(doctorId: string): Promise<string | null> {
     // Simplified logic - get next appointment

@@ -5,157 +5,272 @@ import InfoIcon from "@mui/icons-material/Info";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { apiClient } from "@/lib/api-client";
 
 export default function DoctorBookingSidebar({
+  doctorId,
   queue,
   fees,
+  nextSlot,
   onBook,
   onQueue,
 }: {
+  doctorId: string;
   queue: { waiting: number; estWait: number };
   fees: { consultation: number; booking: number };
+  nextSlot?: string | null;
   onBook: () => void;
   onQueue: () => void;
 }) {
-  const [monthIndex, setMonthIndex] = useState(9); // 0-based; 9 => October
-  const [year] = useState(2023);
-  const [selectedDay, setSelectedDay] = useState<number | null>(24);
-  const [selectedSlot, setSelectedSlot] = useState<string | null>("10:30 AM");
+  const today = new Date();
+  const [currentMonth, setCurrentMonth] = useState(today.getMonth());
+  const [currentYear, setCurrentYear] = useState(today.getFullYear());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   const monthLabel = useMemo(() => {
-    const date = new Date(year, monthIndex, 1);
+    const date = new Date(currentYear, currentMonth, 1);
     return date.toLocaleString(undefined, { month: "long", year: "numeric" });
-  }, [monthIndex, year]);
+  }, [currentMonth, currentYear]);
 
-  const days = useMemo(
-    () => [
-      { label: "Mon", date: 23, disabled: false, badge: 0 },
-      { label: "Tue", date: 24, disabled: false, badge: 3 },
-      { label: "Wed", date: 25, disabled: false, badge: 0 },
-      { label: "Thu", date: 26, disabled: true, badge: 0 },
-    ],
-    []
-  );
+  // Generate dates for the selected month/year
+  const availableDays = useMemo(() => {
+    const days = [];
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    const todayDate = new Date();
+    todayDate.setHours(0, 0, 0, 0);
+    
+    for (let day = 1; day <= lastDay.getDate(); day++) {
+      const date = new Date(currentYear, currentMonth, day);
+      date.setHours(0, 0, 0, 0);
+      
+      // Skip Sundays and past dates
+      if (date.getDay() !== 0 && date >= todayDate) {
+        days.push(date);
+      }
+    }
+    
+    return days;
+  }, [currentMonth, currentYear]);
 
-  const slots = useMemo(
-    () => ["09:00 AM", "10:30 AM", "11:15 AM", "02:00 PM", "03:30 PM", "04:45 PM"],
-    []
-  );
+  const handlePrevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentMonth(11);
+      setCurrentYear(currentYear - 1);
+    } else {
+      setCurrentMonth(currentMonth - 1);
+    }
+    setSelectedDate(null);
+    setSelectedSlot(null);
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentMonth(0);
+      setCurrentYear(currentYear + 1);
+    } else {
+      setCurrentMonth(currentMonth + 1);
+    }
+    setSelectedDate(null);
+    setSelectedSlot(null);
+  };
+
+  const handleYearChange = (increment: number) => {
+    setCurrentYear(currentYear + increment);
+    setSelectedDate(null);
+    setSelectedSlot(null);
+  };
+
+  // Fetch available slots when a date is selected
+  useEffect(() => {
+    if (!selectedDate || !doctorId) return;
+
+    const fetchSlots = async () => {
+      try {
+        setLoadingSlots(true);
+        // Format date without timezone conversion
+        const year = selectedDate.getFullYear();
+        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(selectedDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+        const response = await apiClient.get(`/doctors/${doctorId}/slots?date=${dateStr}`);
+        setAvailableSlots(response.data.slots || []);
+        setSelectedSlot(null);
+      } catch (error) {
+        console.error('Failed to fetch slots:', error);
+        setAvailableSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+
+    fetchSlots();
+  }, [selectedDate, doctorId]);
+
+  const handleDateSelect = (date: Date) => {
+    setSelectedDate(date);
+  };
+
+  const formatDayLabel = (date: Date) => {
+    return date.toLocaleDateString('en-US', { weekday: 'short' });
+  };
+
+  const isDateSelected = (date: Date) => {
+    if (!selectedDate) return false;
+    return (
+      date.getDate() === selectedDate.getDate() &&
+      date.getMonth() === selectedDate.getMonth() &&
+      date.getFullYear() === selectedDate.getFullYear()
+    );
+  };
 
   return (
-    <div className="sticky top-24 flex flex-col gap-4">
-      <div className="bg-linear-to-r from-green-600 to-green-500 rounded-xl p-4 shadow-lg text-white">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-green-100 text-sm font-medium mb-1">Live Queue Status</p>
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-3xl font-bold">{queue.waiting}</h2>
-              <span className="text-sm opacity-90">Patients waiting</span>
-            </div>
-          </div>
-          <div className="bg-white/20 p-2 rounded-lg">
-            <SensorsIcon className="animate-pulse" />
-          </div>
-        </div>
-        <div className="mt-4 pt-3 border-t border-white/20 flex justify-between items-center text-sm">
-          <span>Est. Wait Time:</span>
-          <span className="font-bold">{queue.estWait} mins</span>
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden p-6 flex flex-col gap-4">
+    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden p-6 flex flex-col gap-4">
         <div className="flex items-center gap-3 mb-2">
           <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg text-primary">
             <CalendarMonthIcon />
           </div>
-          <div>
+          <div className="flex-1">
             <h3 className="font-bold text-lg text-slate-900 dark:text-white">Select Date & Time</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Book your slot instantly</p>
+            {nextSlot ? (
+              <p className="text-sm text-green-600 dark:text-green-400 font-medium">Next available: {nextSlot}</p>
+            ) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400">Book your slot instantly</p>
+            )}
           </div>
         </div>
 
-        {/* Month header */}
+        {/* Month and Year header with navigation */}
         <div className="w-full">
-          <div className="flex justify-between items-center mb-3">
-            <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200">{monthLabel}</h4>
+          <div className="flex justify-between items-center mb-3 gap-2">
+            {/* Year navigation */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700/50 rounded-lg px-2 py-1">
+              <button
+                aria-label="Previous year"
+                className="p-0.5 text-slate-500 hover:text-primary transition-colors disabled:opacity-30"
+                onClick={() => handleYearChange(-1)}
+                disabled={currentYear <= today.getFullYear()}
+              >
+                <ChevronLeftIcon fontSize="small" />
+              </button>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 min-w-[40px] text-center">
+                {currentYear}
+              </span>
+              <button
+                aria-label="Next year"
+                className="p-0.5 text-slate-500 hover:text-primary transition-colors"
+                onClick={() => handleYearChange(1)}
+              >
+                <ChevronRightIcon fontSize="small" />
+              </button>
+            </div>
+
+            {/* Month label */}
+            <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex-1 text-center">
+              {new Date(currentYear, currentMonth).toLocaleString(undefined, { month: "long" })}
+            </h4>
+
+            {/* Month navigation */}
             <div className="flex gap-1">
               <button
                 aria-label="Previous month"
-                className="p-1 text-slate-500 hover:text-primary transition-colors"
-                onClick={() => setMonthIndex((i) => Math.max(0, i - 1))}
+                className="p-1 text-slate-500 hover:text-primary transition-colors disabled:opacity-30"
+                onClick={handlePrevMonth}
+                disabled={currentMonth === today.getMonth() && currentYear === today.getFullYear()}
               >
                 <ChevronLeftIcon fontSize="small" />
               </button>
               <button
                 aria-label="Next month"
                 className="p-1 text-slate-500 hover:text-primary transition-colors"
-                onClick={() => setMonthIndex((i) => Math.min(11, i + 1))}
+                onClick={handleNextMonth}
               >
                 <ChevronRightIcon fontSize="small" />
               </button>
             </div>
           </div>
 
-          {/* Days grid */}
-          <div className="grid grid-cols-4 gap-2 mb-4">
-            {days.map((d) => {
-              const isSelected = selectedDay === d.date;
-              if (d.disabled) {
+          {/* Days grid - showing all available days in the month */}
+          {availableDays.length === 0 ? (
+            <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+              <p className="text-sm">No available dates this month</p>
+              <p className="text-xs mt-1">Try selecting a different month</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-2 mb-4 max-h-[280px] overflow-y-auto pr-1">
+              {availableDays.map((date) => {
+                const isSelected = isDateSelected(date);
+                
                 return (
                   <button
-                    key={d.date}
-                    disabled
-                    className="flex flex-col items-center justify-center p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 opacity-50 cursor-not-allowed"
+                    key={date.toISOString()}
+                    onClick={() => handleDateSelect(date)}
+                    className={
+                      isSelected
+                        ? "flex flex-col items-center justify-center p-2 rounded-lg border-2 border-primary bg-green-50 dark:bg-green-900/20 shadow-sm transition-all relative"
+                        : "flex flex-col items-center justify-center p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 hover:border-primary hover:bg-green-50 dark:hover:bg-green-900/20 transition-all group"
+                    }
                   >
-                    <span className="text-[10px] uppercase text-slate-400 font-medium">{d.label}</span>
-                    <span className="text-lg font-bold text-slate-400">{d.date}</span>
+                    <span className={isSelected ? "text-[10px] uppercase text-primary font-bold" : "text-[10px] uppercase text-slate-500 dark:text-slate-400 font-medium"}>
+                      {formatDayLabel(date)}
+                    </span>
+                    <span className={isSelected ? "text-lg font-bold text-primary" : "text-lg font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary"}>
+                      {date.getDate()}
+                    </span>
                   </button>
                 );
-              }
-              return (
-                <button
-                  key={d.date}
-                  onClick={() => setSelectedDay(d.date)}
-                  className={
-                    isSelected
-                      ? "flex flex-col items-center justify-center p-2 rounded-lg border-2 border-primary bg-green-50 dark:bg-green-900/20 shadow-sm transition-all relative"
-                      : "flex flex-col items-center justify-center p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 hover:border-primary hover:bg-green-50 dark:hover:bg-green-900/20 transition-all group"
-                  }
-                >
-                  {d.badge > 0 && isSelected && (
-                    <div className="absolute -top-1.5 -right-1.5 bg-primary text-white text-[10px] font-bold px-1.5 rounded-full">{d.badge}</div>
-                  )}
-                  <span className={isSelected ? "text-[10px] uppercase text-primary font-bold" : "text-[10px] uppercase text-slate-500 dark:text-slate-400 font-medium"}>{d.label}</span>
-                  <span className={isSelected ? "text-lg font-bold text-primary" : "text-lg font-bold text-slate-800 dark:text-slate-200 group-hover:text-primary"}>{d.date}</span>
-                </button>
-              );
-            })}
-          </div>
+              })}
+            </div>
+          )}
         </div>
 
         {/* Slots */}
-        <div className="w-full mb-4">
-          <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">Available Slots</h4>
-          <div className="grid grid-cols-3 gap-2">
-            {slots.map((s) => {
-              const isActive = selectedSlot === s;
-              return (
-                <button
-                  key={s}
-                  onClick={() => setSelectedSlot(s)}
-                  className={
-                    isActive
-                      ? "px-2 py-2 text-xs font-medium rounded-md bg-primary text-white shadow-sm ring-1 ring-primary transition-colors"
-                      : "px-2 py-2 text-xs font-medium rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-primary hover:text-primary hover:bg-green-50 dark:hover:bg-green-900/10 transition-colors"
-                  }
-                >
-                  {s}
-                </button>
-              );
-            })}
+        {selectedDate && (
+          <div className="w-full mb-4">
+            <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-3">
+              Available Slots
+              {loadingSlots && <span className="text-xs text-slate-500 ml-2">(Loading...)</span>}
+            </h4>
+            {loadingSlots ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : availableSlots.length > 0 ? (
+              <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                {availableSlots.map((slot) => {
+                  const isActive = selectedSlot === slot;
+                  return (
+                    <button
+                      key={slot}
+                      onClick={() => setSelectedSlot(slot)}
+                      className={
+                        isActive
+                          ? "px-2 py-2 text-xs font-medium rounded-md bg-primary text-white shadow-sm ring-1 ring-primary transition-colors"
+                          : "px-2 py-2 text-xs font-medium rounded-md border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-primary hover:text-primary hover:bg-green-50 dark:hover:bg-green-900/10 transition-colors"
+                      }
+                    >
+                      {slot}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-slate-500 text-sm">
+                No slots available for this date
+              </div>
+            )}
           </div>
-        </div>
+        )}
+
+        {!selectedDate && (
+          <div className="text-center py-8 text-slate-400 text-sm">
+            Please select a date to view available slots
+          </div>
+        )}
 
         <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-700">
           <div className="flex justify-between items-start text-sm border-b border-slate-100 dark:border-slate-700 pb-3">
@@ -193,13 +308,13 @@ export default function DoctorBookingSidebar({
         </div>
         <button
           onClick={onBook}
-          className="w-full mt-2 bg-primary hover:bg-green-700 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-green-500/20 transition-all duration-200 flex items-center justify-center gap-2 text-lg"
+          disabled={!selectedDate || !selectedSlot}
+          className="w-full mt-2 bg-primary hover:bg-green-700 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-green-500/20 transition-all duration-200 flex items-center justify-center gap-2 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span>Book Appointment</span>
           <ArrowForwardIcon />
         </button>
         <p className="text-center text-xs text-slate-400">Instant confirmation • Secure payment</p>
       </div>
-    </div>
-  );
-}
+    );
+  }

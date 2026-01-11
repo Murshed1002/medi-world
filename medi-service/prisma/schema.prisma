@@ -8,22 +8,23 @@ datasource db {
 }
 
 model appointments {
-  id                 String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  patient_id         String?         @db.Uuid
-  doctor_id          String?         @db.Uuid
-  clinic_id          String?         @db.Uuid
-  appointment_date   DateTime        @db.Date
-  slot_start_time    DateTime        @db.Time(6)
-  slot_end_time      DateTime        @db.Time(6)
-  status             String          @db.VarChar(30)
-  booking_fee_amount Decimal?        @db.Decimal(10, 2)
-  paid_amount        Decimal?        @default(0) @db.Decimal(10, 2)
+  id                 String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  patient_id         String?          @db.Uuid
+  doctor_id          String?          @db.Uuid
+  clinic_id          String?          @db.Uuid
+  appointment_date   DateTime         @db.Date
+  slot_start_time    DateTime         @db.Time(6)
+  slot_end_time      DateTime         @db.Time(6)
+  status             String           @db.VarChar(30)
+  booking_fee_amount Decimal?         @db.Decimal(10, 2)
+  paid_amount        Decimal?         @default(0) @db.Decimal(10, 2)
   queue_token_number Int?
-  created_at         DateTime?       @default(now()) @db.Timestamp(6)
-  updated_at         DateTime?       @default(now()) @db.Timestamp(6)
-  clinics            clinics?        @relation(fields: [clinic_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  doctors            doctors?        @relation(fields: [doctor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  patients           patients?       @relation(fields: [patient_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  created_at         DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?        @default(now()) @db.Timestamp(6)
+  clinics            clinics?         @relation(fields: [clinic_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  doctors            doctors?         @relation(fields: [doctor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  patients           patients?        @relation(fields: [patient_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  doctor_reviews     doctor_reviews[]
   payments           payments[]
   queue_entries      queue_entries[]
 
@@ -118,16 +119,17 @@ model doctors {
   registration_number String?          @db.VarChar(120)
   experience_years    Int?
   is_verified         Boolean?         @default(false)
-  bio                 String?          @db.Text
+  created_at          DateTime?        @default(now()) @db.Timestamp(6)
+  gender              String?          @db.VarChar(10)
+  bio                 String?
   rating              Decimal?         @default(0.0) @db.Decimal(3, 2)
   reviews_count       Int?             @default(0)
-  profile_image_url   String?          @db.Text
-  gender              String?          @db.VarChar(10)
+  profile_image_url   String?
   supports_video      Boolean?         @default(false)
-  created_at          DateTime?        @default(now()) @db.Timestamp(6)
   appointments        appointments[]
   clinic_queues       clinic_queues[]
   doctor_clinics      doctor_clinics[]
+  doctor_reviews      doctor_reviews[]
   doctor_slots        doctor_slots[]
   auth_users          auth_users?      @relation(fields: [auth_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -138,17 +140,18 @@ model doctors {
 }
 
 model patients {
-  id                         String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  auth_user_id               String?        @unique @db.Uuid
-  full_name                  String?        @db.VarChar(255)
-  gender                     String?        @db.VarChar(10)
-  dob                        DateTime?      @db.Date
-  emergency_contact_name     String?        @db.VarChar(255)
-  emergency_contact_relation String?        @db.VarChar(50)
-  emergency_contact_phone    String?        @db.VarChar(20)
-  created_at                 DateTime?      @default(now()) @db.Timestamp(6)
+  id                         String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  auth_user_id               String?          @unique @db.Uuid
+  full_name                  String?          @db.VarChar(255)
+  gender                     String?          @db.VarChar(10)
+  dob                        DateTime?        @db.Date
+  created_at                 DateTime?        @default(now()) @db.Timestamp(6)
+  emergency_contact_name     String?          @db.VarChar(255)
+  emergency_contact_relation String?          @db.VarChar(50)
+  emergency_contact_phone    String?          @db.VarChar(20)
   appointments               appointments[]
-  auth_users                 auth_users?    @relation(fields: [auth_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  doctor_reviews             doctor_reviews[]
+  auth_users                 auth_users?      @relation(fields: [auth_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   payments                   payments[]
 }
 
@@ -227,4 +230,30 @@ model refresh_tokens {
   auth_users           auth_users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([user_id, revoked, expires_at(sort: Desc)], map: "idx_refresh_tokens_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model doctor_reviews {
+  id                 String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  doctor_id          String        @db.Uuid
+  patient_id         String        @db.Uuid
+  appointment_id     String?       @db.Uuid
+  rating             Decimal       @db.Decimal(2, 1)
+  review_text        String?
+  helpful_count      Int?          @default(0)
+  doctor_response    String?
+  doctor_response_at DateTime?     @db.Timestamp(6)
+  is_verified        Boolean?      @default(false)
+  is_anonymous       Boolean?      @default(false)
+  created_at         DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?     @default(now()) @db.Timestamp(6)
+  appointments       appointments? @relation(fields: [appointment_id], references: [id], onUpdate: NoAction)
+  doctors            doctors       @relation(fields: [doctor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  patients           patients      @relation(fields: [patient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)], map: "idx_doctor_reviews_created")
+  @@index([doctor_id], map: "idx_doctor_reviews_doctor")
+  @@index([patient_id], map: "idx_doctor_reviews_patient")
+  @@index([rating(sort: Desc)], map: "idx_doctor_reviews_rating")
 }

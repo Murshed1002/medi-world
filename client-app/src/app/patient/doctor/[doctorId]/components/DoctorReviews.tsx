@@ -1,7 +1,39 @@
 "use client";
 import StarIcon from "@mui/icons-material/Star";
+import VerifiedIcon from "@mui/icons-material/Verified";
 
-export default function DoctorReviews({ rating, count }: { rating: number; count: number }) {
+interface Review {
+  id: string;
+  patientName: string;
+  rating: number;
+  comment: string;
+  date: string;
+  isVerified: boolean;
+  helpfulCount: number;
+}
+
+export default function DoctorReviews({ 
+  rating, 
+  count, 
+  reviews = [] 
+}: { 
+  rating: number; 
+  count: number;
+  reviews?: Review[];
+}) {
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+    return date.toLocaleDateString();
+  };
+
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
       <div className="flex items-center justify-between mb-6">
@@ -38,25 +70,46 @@ export default function DoctorReviews({ rating, count }: { rating: number; count
           </div>
         </div>
       </div>
-      <div className="border-t border-slate-100 dark:border-slate-700 pt-6">
-        <div className="flex gap-4">
-          <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 shrink-0">JD</div>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h5 className="font-bold text-slate-900 dark:text-white text-sm">John Doe</h5>
-              <span className="text-xs text-slate-400">• 2 days ago</span>
+      
+      {reviews.length > 0 && (
+        <div className="border-t border-slate-100 dark:border-slate-700 pt-6 space-y-6">
+          {reviews.map((review) => (
+            <div key={review.id} className="flex gap-4">
+              <div className="size-10 rounded-full bg-slate-200 dark:bg-slate-600 flex items-center justify-center font-bold text-slate-600 dark:text-slate-300 shrink-0 text-sm">
+                {review.patientName.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h5 className="font-bold text-slate-900 dark:text-white text-sm">{review.patientName}</h5>
+                  {review.isVerified && (
+                    <VerifiedIcon className="text-blue-500 text-sm" />
+                  )}
+                  <span className="text-xs text-slate-400">• {formatDate(review.date)}</span>
+                </div>
+                <div className="flex text-yellow-400 gap-0.5 mb-2 text-xs">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <StarIcon key={i} className={`text-[14px] ${i < review.rating ? "text-yellow-400" : "text-slate-300 dark:text-slate-600"}`} />
+                  ))}
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-2">
+                  {review.comment}
+                </p>
+                {review.helpfulCount > 0 && (
+                  <p className="text-xs text-slate-500">
+                    {review.helpfulCount} {review.helpfulCount === 1 ? 'person' : 'people'} found this helpful
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="flex text-yellow-400 gap-0.5 mb-2 text-xs">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <StarIcon key={i} className="text-[14px]" />
-              ))}
-            </div>
-            <p className="text-slate-600 dark:text-slate-300 text-sm">
-              Dr. Chen is amazing! She listened to all my concerns and explained everything clearly. The staff was also very friendly. Highly recommended.
-            </p>
-          </div>
+          ))}
         </div>
-      </div>
+      )}
+      
+      {reviews.length === 0 && count === 0 && (
+        <div className="border-t border-slate-100 dark:border-slate-700 pt-6 text-center text-slate-500">
+          <p>No reviews yet. Be the first to review this doctor!</p>
+        </div>
+      )}
     </div>
   );
 }
