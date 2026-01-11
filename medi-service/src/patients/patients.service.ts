@@ -1,12 +1,29 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { RedisService } from '../common/redis/redis.service';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 
 @Injectable()
 export class PatientsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(PatientsService.name);
+  private readonly PROFILE_CACHE_TTL = 300; // 5 minutes
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async getPatientProfile(userId: string) {
+    // Try to get from cache first
+    const cachedProfile = await this.redis.getUserProfile(userId);
+    if (cachedProfile) {
+      this.logger.log(`Profile cache hit for user ${userId}`);
+      return cachedProfile;
+    }
+
+    this.logger.log(`Profile cache miss for user ${userId}, fetching from DB`);
+
+    // Fetch from database
     const user = await this.prisma.auth_users.findUnique({
       where: { id: userId },
       include: {
@@ -20,7 +37,7 @@ export class PatientsService {
 
     const patient = user.patients;
 
-    return {
+    const profile = {
       id: user.id,
       phone_number: user.phone_number,
       email: user.email,
@@ -34,6 +51,11 @@ export class PatientsService {
       emergency_contact_relation: patient?.emergency_contact_relation,
       emergency_contact_phone: patient?.emergency_contact_phone,
     };
+
+    // Cache the profile
+    await this.redis.setUserProfile(userId, profile, this.PROFILE_CACHE_TTL);
+
+    return profile;
   }
 
   async updatePatientProfile(userId: string, updateDto: UpdatePatientDto) {
@@ -85,6 +107,10 @@ export class PatientsService {
         },
       });
     }
+
+    // Invalidate cache after update
+    await this.redis.deleteUserProfile(userId);
+    this.logger.log(`Profile cache invalidated for user ${userId}`);
 
     return this.getPatientProfile(userId);
   }

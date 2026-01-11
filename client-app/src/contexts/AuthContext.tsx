@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useCallback, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api-client';
 import type {
@@ -37,6 +37,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading: true,
     isAuthenticated: false,
   });
+
+  // Idle timeout configuration - use ref to avoid circular dependency
+  const IDLE_TIMEOUT = 15 * 60 * 1000; // 15 minutes in milliseconds
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // ==================== Authentication Actions ====================
 
@@ -109,6 +113,63 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const deleteSession = useCallback(async (sessionId: string): Promise<void> => {
     await apiClient.delete(`/auth/sessions/${sessionId}`);
   }, []);
+
+  // ==================== Idle Timeout ====================
+
+  const resetIdleTimer = useCallback(() => {
+    // Clear existing timer
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+
+    // Only set timer if user is authenticated
+    if (state.isAuthenticated) {
+      idleTimerRef.current = setTimeout(() => {
+        console.log('Session expired due to inactivity');
+        logout();
+      }, IDLE_TIMEOUT);
+    }
+  }, [state.isAuthenticated, logout, IDLE_TIMEOUT]);
+
+  // Track user activity
+  useEffect(() => {
+    if (!state.isAuthenticated) {
+      // Clear timer if user is not authenticated
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = null;
+      }
+      return;
+    }
+
+    // Events that indicate user activity
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+
+    // Reset timer on any activity
+    const handleActivity = () => {
+      resetIdleTimer();
+    };
+
+    // Add event listeners
+    events.forEach((event) => {
+      window.addEventListener(event, handleActivity);
+    });
+
+    // Initialize timer
+    resetIdleTimer();
+
+    // Cleanup
+    return () => {
+      events.forEach((event) => {
+        window.removeEventListener(event, handleActivity);
+      });
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = null;
+      }
+    };
+  }, [state.isAuthenticated, resetIdleTimer]);
 
   // ==================== Initialization ====================
 

@@ -1,36 +1,35 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
-import { PrismaService } from '../../common/prisma/prisma.service';
+import { RedisService } from '../../common/redis/redis.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class OtpService {
   private readonly logger = new Logger(OtpService.name);
+  private readonly OTP_TTL = 300; // 5 minutes
+  private readonly RATE_LIMIT_TTL = 900; // 15 minutes
+  private readonly MAX_OTP_REQUESTS = 10;
+  private readonly MAX_VERIFY_ATTEMPTS = 3;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly redis: RedisService) {}
 
   async sendOtp(
     phoneNumber: string,
     ipAddress?: string,
     userAgent?: string,
   ): Promise<{ success: boolean; message: string }> {
-    // Check rate limiting - max 3 requests per 15 minutes
-    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-    
-    const recentAttempts = await this.prisma.otp_verifications.count({
-      where: {
-        phone_number: phoneNumber,
-        created_at: {
-          gte: fifteenMinutesAgo,
-        },
-      },
-    });
+    // Check rate limiting using Redis
+    const rateLimitKey = `otp:rate:${phoneNumber}`;
+    const attempts = await this.redis.getRateLimit(rateLimitKey);
 
-    if (recentAttempts >= 10) {
+    if (attempts >= this.MAX_OTP_REQUESTS) {
       throw new BadRequestException(
         'Too many OTP requests. Please try again after 15 minutes.',
       );
     }
+
+    // Increment rate limit counter
+    await this.redis.incrementRateLimit(rateLimitKey, this.RATE_LIMIT_TTL);
 
     // Generate 6-digit OTP
     const otp = this.generateOtp();
@@ -39,18 +38,20 @@ export class OtpService {
     // Hash OTP for storage
     const otpHash = await bcrypt.hash(otp, 10);
 
-    // Store OTP with 5 minute expiry
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    // Store OTP in Redis with metadata
+    const otpData = {
+      otpHash,
+      attempts: 0,
+      ipAddress,
+      userAgent,
+      createdAt: new Date().toISOString(),
+    };
 
-    await this.prisma.otp_verifications.create({
-      data: {
-        phone_number: phoneNumber,
-        otp_hash: otpHash,
-        expires_at: expiresAt,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-      },
-    });
+    await this.redis.set(
+      `otp:${phoneNumber}`,
+      JSON.stringify(otpData),
+      this.OTP_TTL,
+    );
 
     // Send OTP via SMS
     await this.sendSms(phoneNumber, otp);
@@ -65,37 +66,21 @@ export class OtpService {
     phoneNumber: string,
     otp: string,
   ): Promise<{ valid: boolean; message?: string }> {
-    // Get the most recent OTP for this phone number
-    const otpRecord = await this.prisma.otp_verifications.findFirst({
-      where: {
-        phone_number: phoneNumber,
-        verified: false,
-      },
-      orderBy: {
-        created_at: 'desc',
-      },
-    });
+    // Get OTP from Redis
+    const otpDataStr = await this.redis.get(`otp:${phoneNumber}`);
 
-    if (!otpRecord) {
+    if (!otpDataStr) {
       return {
         valid: false,
         message: 'No OTP found. Please request a new one.',
       };
     }
 
-    // Check if OTP is expired
-    if (new Date() > otpRecord.expires_at) {
-      return {
-        valid: false,
-        message: 'OTP has expired. Please request a new one.',
-      };
-    }
+    const otpData = JSON.parse(otpDataStr);
 
     // Check max attempts
-    const attempts = otpRecord.attempts ?? 0;
-    const maxAttempts = otpRecord.max_attempts ?? 3;
-    
-    if (attempts >= maxAttempts) {
+    if (otpData.attempts >= this.MAX_VERIFY_ATTEMPTS) {
+      await this.redis.deleteOtp(phoneNumber);
       return {
         valid: false,
         message: 'Maximum verification attempts exceeded. Please request a new OTP.',
@@ -103,30 +88,27 @@ export class OtpService {
     }
 
     // Verify OTP
-    const isValid = await bcrypt.compare(otp, otpRecord.otp_hash);
+    const isValid = await bcrypt.compare(otp, otpData.otpHash);
 
     // Increment attempts
-    await this.prisma.otp_verifications.update({
-      where: { id: otpRecord.id },
-      data: { attempts: { increment: 1 } },
-    });
+    otpData.attempts += 1;
+    const remainingTtl = await this.redis.getClient().ttl(`otp:${phoneNumber}`);
+    await this.redis.set(
+      `otp:${phoneNumber}`,
+      JSON.stringify(otpData),
+      remainingTtl > 0 ? remainingTtl : this.OTP_TTL,
+    );
 
     if (!isValid) {
-      const remainingAttempts = maxAttempts - (attempts + 1);
+      const remainingAttempts = this.MAX_VERIFY_ATTEMPTS - otpData.attempts;
       return {
         valid: false,
         message: `Invalid OTP. ${remainingAttempts} attempts remaining.`,
       };
     }
 
-    // Mark OTP as verified
-    await this.prisma.otp_verifications.update({
-      where: { id: otpRecord.id },
-      data: {
-        verified: true,
-        verified_at: new Date(),
-      },
-    });
+    // Delete OTP after successful verification
+    await this.redis.deleteOtp(phoneNumber);
 
     return {
       valid: true,
@@ -140,12 +122,9 @@ export class OtpService {
   }
 
   async clearOtpVerifications(phoneNumber: string): Promise<void> {
-    // Delete all OTP verifications for this phone number
-    await this.prisma.otp_verifications.deleteMany({
-      where: {
-        phone_number: phoneNumber,
-      },
-    });
+    // Clear OTP and rate limit from Redis
+    await this.redis.deleteOtp(phoneNumber);
+    await this.redis.deleteRateLimit(`otp:rate:${phoneNumber}`);
     this.logger.log(`Cleared OTP verifications for ${phoneNumber}`);
   }
 

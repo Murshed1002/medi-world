@@ -5,11 +5,15 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { RedisService } from '../../common/redis/redis.service';
 import type { Request } from 'express';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private jwtService: JwtService) {}
+  constructor(
+    private jwtService: JwtService,
+    private redisService: RedisService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
@@ -17,6 +21,12 @@ export class JwtAuthGuard implements CanActivate {
 
     if (!token) {
       throw new UnauthorizedException('No token provided');
+    }
+
+    // Check if token is blacklisted
+    const isBlacklisted = await this.redisService.isTokenBlacklisted(token);
+    if (isBlacklisted) {
+      throw new UnauthorizedException('Token has been revoked');
     }
 
     try {

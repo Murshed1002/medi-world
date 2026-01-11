@@ -19,9 +19,10 @@ export default function VerifyOtpPageView() {
 
   const isComplete = useMemo(() => otp.every((d) => /^\d$/.test(d)), [otp]);
 
-  // Load phone from sessionStorage
+  // Load phone from URL params
   useEffect(() => {
-    const storedPhone = sessionStorage.getItem("login_phone");
+    const params = new URLSearchParams(window.location.search);
+    const storedPhone = params.get("phone");
     if (!storedPhone) {
       router.push("/patient/login");
       return;
@@ -91,8 +92,7 @@ export default function VerifyOtpPageView() {
       // Verify OTP with backend
       await verifyOtp(phone, code);
       
-      // Clear sessionStorage
-      sessionStorage.removeItem("login_phone");
+      // No need to clear anything - phone was never stored
       
       // Redirect to home
       router.push("/patient/home");
@@ -125,7 +125,7 @@ export default function VerifyOtpPageView() {
   };
 
   const onBack = () => {
-    sessionStorage.removeItem("login_phone");
+    // Phone was never stored, nothing to clean up
     router.push("/patient/login");
   };
 

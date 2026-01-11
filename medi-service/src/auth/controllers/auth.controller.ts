@@ -133,9 +133,10 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const refreshToken = req.cookies?.refresh_token;
+    const accessToken = req.cookies?.access_token;
 
     if (refreshToken) {
-      const logoutResult = await this.authService.logout(refreshToken);
+      const logoutResult = await this.authService.logout(refreshToken, accessToken);
       
       // Clear OTP verifications for this user to reset rate limiting
       if (logoutResult.phoneNumber) {

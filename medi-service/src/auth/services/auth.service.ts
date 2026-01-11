@@ -1,6 +1,7 @@
 import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { RedisService } from '../../common/redis/redis.service';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import type { JwtPayload, AuthTokens, DeviceInfo } from '../types/auth.types';
@@ -8,10 +9,12 @@ import type { JwtPayload, AuthTokens, DeviceInfo } from '../types/auth.types';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly ACCESS_TOKEN_TTL = 900; // 15 minutes in seconds
 
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
   ) {}
 
   async authenticateUser(
@@ -177,7 +180,13 @@ export class AuthService {
     return newTokens;
   }
 
-  async logout(refreshToken: string): Promise<{ success: boolean; phoneNumber?: string }> {
+  async logout(refreshToken: string, accessToken?: string): Promise<{ success: boolean; phoneNumber?: string }> {
+    // Blacklist the access token if provided
+    if (accessToken) {
+      await this.redis.blacklistToken(accessToken, this.ACCESS_TOKEN_TTL);
+      this.logger.log('Access token blacklisted');
+    }
+
     // Find all non-revoked tokens with user information
     const tokens = await this.prisma.refresh_tokens.findMany({
       where: { revoked: false },
@@ -197,6 +206,11 @@ export class AuthService {
             revoked_at: new Date(),
           },
         });
+
+        // Clear user profile cache
+        await this.redis.deleteUserProfile(token.auth_users.id);
+        this.logger.log(`User profile cache cleared for ${token.auth_users.id}`);
+
         return { success: true, phoneNumber: token.auth_users.phone_number };
       }
     }

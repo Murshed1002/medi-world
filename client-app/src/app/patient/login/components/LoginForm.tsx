@@ -30,11 +30,8 @@ export default function LoginForm() {
       // Send OTP to backend
       await sendOtp(trimmed);
       
-      // Store phone in sessionStorage for verify page
-      sessionStorage.setItem("login_phone", trimmed);
-      
-      // Navigate to verify OTP page
-      router.push("/patient/verify-otp");
+      // Navigate to verify OTP page with phone in state (memory only, not persisted)
+      router.push(`/patient/verify-otp?phone=${encodeURIComponent(trimmed)}`);
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to send OTP. Please try again.");
     } finally {
