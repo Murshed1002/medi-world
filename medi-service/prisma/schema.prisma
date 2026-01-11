@@ -42,15 +42,16 @@ model audit_logs {
 }
 
 model auth_users {
-  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  phone_number String    @unique @db.VarChar(15)
-  email        String?   @db.VarChar(255)
-  role         String    @db.VarChar(30)
-  is_active    Boolean?  @default(true)
-  created_at   DateTime? @default(now()) @db.Timestamp(6)
-  updated_at   DateTime? @default(now()) @db.Timestamp(6)
-  doctors      doctors?
-  patients     patients?
+  id             String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  phone_number   String           @unique @db.VarChar(15)
+  email          String?          @db.VarChar(255)
+  role           String           @db.VarChar(30)
+  is_active      Boolean?         @default(true)
+  created_at     DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at     DateTime?        @default(now()) @db.Timestamp(6)
+  doctors        doctors?
+  patients       patients?
+  refresh_tokens refresh_tokens[]
 
   @@index([phone_number], map: "idx_auth_users_phone")
 }
@@ -178,4 +179,40 @@ model schema_migrations {
   id         Int       @id @default(autoincrement())
   filename   String?   @unique
   applied_at DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model otp_verifications {
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  phone_number String    @db.VarChar(15)
+  otp_hash     String    @db.VarChar(255)
+  attempts     Int?      @default(0)
+  max_attempts Int?      @default(3)
+  expires_at   DateTime  @db.Timestamp(6)
+  verified     Boolean?  @default(false)
+  verified_at  DateTime? @db.Timestamp(6)
+  ip_address   String?   @db.VarChar(45)
+  user_agent   String?
+  created_at   DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([expires_at], map: "idx_otp_expires_at")
+  @@index([phone_number, created_at(sort: Desc)], map: "idx_otp_phone_number")
+}
+
+model refresh_tokens {
+  id                   String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  user_id              String           @db.Uuid
+  token_hash           String           @unique @db.VarChar(255)
+  expires_at           DateTime         @db.Timestamp(6)
+  revoked              Boolean?         @default(false)
+  revoked_at           DateTime?        @db.Timestamp(6)
+  ip_address           String?          @db.VarChar(45)
+  user_agent           String?
+  device_info          Json?
+  replaced_by          String?          @db.Uuid
+  created_at           DateTime?        @default(now()) @db.Timestamp(6)
+  refresh_tokens       refresh_tokens?  @relation("refresh_tokensTorefresh_tokens", fields: [replaced_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_refresh_tokens refresh_tokens[] @relation("refresh_tokensTorefresh_tokens")
+  auth_users           auth_users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, revoked, expires_at(sort: Desc)], map: "idx_refresh_tokens_user")
 }

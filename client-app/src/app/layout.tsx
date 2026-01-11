@@ -1,4 +1,5 @@
 import "./globals.css";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 export const metadata = {
   title: "Clinic Booking",
@@ -13,7 +14,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-gray-50 text-gray-900">
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

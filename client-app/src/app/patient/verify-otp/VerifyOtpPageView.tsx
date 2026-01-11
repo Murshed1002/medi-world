@@ -2,17 +2,32 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 import VerifyOtpForm from "@/app/patient/verify-otp/components/VerifyOtpForm";
 import VerifyOtpFooter from "@/app/patient/verify-otp/components/VerifyOtpFooter";
 import LockIcon from "@mui/icons-material/Lock";
 
 export default function VerifyOtpPageView() {
   const router = useRouter();
+  const { verifyOtp, sendOtp } = useAuth();
+  const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState<string[]>(Array(6).fill(""));
   const [countdown, setCountdown] = useState<number>(30);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const inputsRef = useRef<Array<HTMLInputElement | null>>([]);
 
   const isComplete = useMemo(() => otp.every((d) => /^\d$/.test(d)), [otp]);
+
+  // Load phone from sessionStorage
+  useEffect(() => {
+    const storedPhone = sessionStorage.getItem("login_phone");
+    if (!storedPhone) {
+      router.push("/patient/login");
+      return;
+    }
+    setPhone(storedPhone);
+  }, [router]);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -25,6 +40,7 @@ export default function VerifyOtpPageView() {
     const next = [...otp];
     next[idx] = digit;
     setOtp(next);
+    setError("");
     if (digit && idx < inputsRef.current.length - 1) {
       inputsRef.current[idx + 1]?.focus();
     }
@@ -63,31 +79,72 @@ export default function VerifyOtpPageView() {
     if (lastIdx >= 0) inputsRef.current[lastIdx]?.focus();
   };
 
-  const onVerify = (e: React.FormEvent) => {
+  const onVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isComplete) return;
+    
+    setIsLoading(true);
+    setError("");
     const code = otp.join("");
-    console.log("Verify OTP:", code);
-    router.push("/patient/home");
+
+    try {
+      // Verify OTP with backend
+      await verifyOtp(phone, code);
+      
+      // Clear sessionStorage
+      sessionStorage.removeItem("login_phone");
+      
+      // Redirect to home
+      router.push("/patient/home");
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Invalid OTP. Please try again.");
+      // Clear OTP fields on error
+      setOtp(Array(6).fill(""));
+      inputsRef.current[0]?.focus();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const onResend = () => {
+  const onResend = async () => {
     if (countdown > 0) return;
-    console.log("Resend OTP");
-    setCountdown(30);
+    
+    setIsLoading(true);
+    setError("");
+    
+    try {
+      await sendOtp(phone);
+      setCountdown(30);
+      setOtp(Array(6).fill(""));
+      inputsRef.current[0]?.focus();
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to resend OTP. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const onBack = () => router.push("/patient/login");
+  const onBack = () => {
+    sessionStorage.removeItem("login_phone");
+    router.push("/patient/login");
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 text-slate-900 dark:bg-[#101922] dark:text-slate-100">
       <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8">
         <div className="w-full max-w-lg bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden relative">
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 p-4">
+              <p className="text-red-600 dark:text-red-400 text-sm text-center">{error}</p>
+            </div>
+          )}
+          
           <VerifyOtpForm
             otp={otp}
             inputsRef={inputsRef}
             countdown={countdown}
             isComplete={isComplete}
+            isLoading={isLoading}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             onPasteFirst={handlePaste}

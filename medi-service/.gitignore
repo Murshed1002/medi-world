@@ -1,12 +1,6 @@
 node_modules
 dist
 
-# Environment variables - NEVER commit real credentials
-.env
-.env.local
-.env.production
-.env.staging
-.env.test
 
 # Keep templates for reference (safe to commit)
 !.env*.template

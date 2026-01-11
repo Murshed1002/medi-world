@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 import WavingHandIcon from "@mui/icons-material/WavingHand";
 import SmartphoneIcon from "@mui/icons-material/Smartphone";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
@@ -8,28 +9,48 @@ import LockIcon from "@mui/icons-material/Lock";
 
 export default function LoginForm() {
   const router = useRouter();
+  const { sendOtp } = useAuth();
   const [phone, setPhone] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(false);
+    setError("");
+    
     const trimmed = phone.replace(/\D/g, "");
-    if (trimmed !== phone || trimmed.length < 10) {
-      setError(true);
+    if (trimmed.length < 10) {
+      setError("Please enter a valid 10-digit mobile number");
       return;
     }
-    router.push("/patient/verify-otp");
+
+    setIsLoading(true);
+
+    try {
+      // Send OTP to backend
+      await sendOtp(trimmed);
+      
+      // Store phone in sessionStorage for verify page
+      sessionStorage.setItem("login_phone", trimmed);
+      
+      // Navigate to verify OTP page
+      router.push("/patient/verify-otp");
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to send OTP. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPhone(e.target.value);
-    const digits = e.target.value.replace(/\D/g, "");
-    if (digits !== e.target.value) {
-      setError(true);
-      return;
+    const value = e.target.value;
+    const digits = value.replace(/\D/g, "");
+    
+    // Only allow digits and limit to 10
+    if (digits.length <= 10) {
+      setPhone(digits);
+      setError("");
     }
-    setError(false);
   };
 
   return (
@@ -64,20 +85,25 @@ export default function LoginForm() {
                   maxLength={10}
                   value={phone}
                   onChange={handlePhoneChange}
+                  disabled={isLoading}
+                  required
                 />
               </div>
               {error && (
-                <p className="text-red-600 text-sm ml-auto mr-auto">Please enter a valid mobile number.</p>
+                <p className="text-red-600 text-sm mt-2">{error}</p>
               )}
             </label>
           </div>
 
           <button
             type="submit"
-            className="w-full cursor-pointer flex items-center justify-center rounded-lg h-12 px-5 bg-green-600 hover:bg-green-700 text-white text-base font-bold tracking-[0.015em] transition-colors shadow-lg shadow-green-500/30"
+            disabled={isLoading || phone.length < 10}
+            className="w-full cursor-pointer flex items-center justify-center rounded-lg h-12 px-5 bg-green-600 hover:bg-green-700 text-white text-base font-bold tracking-[0.015em] transition-colors shadow-lg shadow-green-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span className="truncate">Get One-Time Password</span>
-            <ArrowForwardIcon className="material-symbols-outlined ml-2 text-xl" />
+            <span className="truncate">
+              {isLoading ? "Sending OTP..." : "Get One-Time Password"}
+            </span>
+            {!isLoading && <ArrowForwardIcon className="material-symbols-outlined ml-2 text-xl" />}
           </button>
         </form>
         <div className="mt-6 flex flex-col items-center gap-4">

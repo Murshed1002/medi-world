@@ -5,10 +5,10 @@ import path from 'path';
 export async function runMigrations() {
   // Create a new client for each migration run
   const client = new Client({
-    host: process.env.POSTGRES_HOST || 'localhost',
-    user: process.env.POSTGRES_USER || 'root',
-    password: process.env.POSTGRES_PASSWORD || 'root',
-    database: process.env.POSTGRES_DB || 'mediworld_db',
+    host: process.env.DB_HOST || 'localhost',
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || 'root',
+    database: process.env.DB_NAME || 'mediworld_db',
   });
 
   try {

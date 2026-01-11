@@ -8,6 +8,7 @@ export default function VerifyOtpForm({
   inputsRef,
   countdown,
   isComplete,
+  isLoading,
   onChange,
   onKeyDown,
   onPasteFirst,
@@ -18,6 +19,7 @@ export default function VerifyOtpForm({
   inputsRef: React.MutableRefObject<(HTMLInputElement | null)[]>;
   countdown: number;
   isComplete: boolean;
+  isLoading?: boolean;
   onChange: (idx: number, value: string) => void;
   onKeyDown: (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => void;
   onPasteFirst: (e: React.ClipboardEvent<HTMLInputElement>) => void;
@@ -56,6 +58,7 @@ export default function VerifyOtpForm({
                 onChange={(e) => onChange(i, e.target.value)}
                 onKeyDown={(e) => onKeyDown(i, e)}
                 onPaste={i === 0 ? onPasteFirst : undefined}
+                disabled={isLoading}
               />
             ))}
           </div>
@@ -69,7 +72,7 @@ export default function VerifyOtpForm({
             </div>
             <button
               className="text-sm font-semibold text-slate-400 dark:text-slate-600 disabled:cursor-not-allowed disabled:opacity-60 hover:text-emerald-600 transition-colors"
-              disabled={countdown > 0}
+              disabled={countdown > 0 || isLoading}
               type="button"
               onClick={onResend}
             >
@@ -79,11 +82,11 @@ export default function VerifyOtpForm({
 
           <button
             type="submit"
-            disabled={!isComplete}
+            disabled={!isComplete || isLoading}
             className="flex w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 items-center justify-center overflow-hidden rounded-xl h-14 px-5 bg-emerald-600 hover:bg-emerald-700 text-white text-lg font-bold tracking-wide shadow-lg shadow-emerald-500/30 transition-all hover:shadow-emerald-500/50 active:scale-[0.98]"
           >
-            <span className="mr-2">Verify &amp; Proceed</span>
-            <ArrowForwardIcon />
+            <span className="mr-2">{isLoading ? "Verifying..." : "Verify & Proceed"}</span>
+            {!isLoading && <ArrowForwardIcon />}
           </button>
         </form>
       </div>
