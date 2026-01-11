@@ -46,7 +46,43 @@ export class AppointmentsService {
         bookingFee: 200, // always from backend
       });
 
-      // 3️⃣ Create payment intent (delegated later)
+      // 3️⃣ Create or get clinic queue for this date
+      let clinicQueue = await tx.findClinicQueue(
+        dto.clinicId,
+        dto.doctorId,
+        new Date(dto.appointmentDate),
+      );
+
+      if (!clinicQueue) {
+        // Create queue if doesn't exist
+        clinicQueue = await tx.createClinicQueue({
+          clinic_id: dto.clinicId,
+          doctor_id: dto.doctorId,
+          queue_date: new Date(dto.appointmentDate),
+          status: 'NOT_STARTED',
+          current_token_number: 0,
+          last_issued_token_number: 0,
+        });
+      }
+
+      // 4️⃣ Assign token number
+      const tokenNumber = clinicQueue.last_issued_token_number + 1;
+
+      // Update last issued token
+      await tx.updateClinicQueue(clinicQueue.id, {
+        last_issued_token_number: tokenNumber,
+      });
+
+      // Create queue entry
+      await tx.createQueueEntry({
+        clinic_queue_id: clinicQueue.id,
+        appointment_id: appointment.id,
+        token_number: tokenNumber,
+        status: 'WAITING',
+        check_in_time: new Date(), // Already checked in
+      });
+
+      // 5️⃣ Create payment intent
       const payment = await tx.createPayment({
         appointmentId: appointment.id,
         amount: appointment.bookingFee,
@@ -56,6 +92,8 @@ export class AppointmentsService {
       return {
         appointmentId: appointment.id,
         paymentId: payment.id,
+        tokenNumber, // Return token number to user
+        queueDate: dto.appointmentDate,
         expiresAt,
       };
     });

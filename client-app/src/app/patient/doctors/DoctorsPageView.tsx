@@ -2,138 +2,11 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiClient } from "@/lib/api-client";
 import type { Doctor } from "./types";
 import DoctorsSearchBar from "./components/DoctorsSearchBar";
 import DoctorsFilters from "./components/DoctorsFilters";
 import DoctorsGrid from "./components/DoctorsGrid";
-
-// Mock data (kept at top, same pattern as other pages)
-const mockDoctors: Doctor[] = [
-  {
-    id: "alsjf-9adfa-a9dsf9as-asdfasdf",
-    name: "Dr. James Wilson",
-    specialization: "Cardiologist",
-    rating: 4.9,
-    reviews: 120,
-    fee: 150,
-    availableToday: true,
-    clinic: "Heart Care Clinic, 123 Health Ave, New York",
-    avatarUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDZLxHCTeji0h2YcibzURppf4JWscgBwpeIzdm5d7N52ECQ-816Nta3RWeXKh67R2zyRo4C3tniUIAPMOqkD-BGO6jHKZ7-4QZ6tty1GTfQYpzm3-mcvvIIJXTp6J7Xg1rAtg0YfyF-3JWDzu5SDP1W4nqCeZ4cGY5bC59ldtI5v-dUDzOYtnQml4mXGQ5r0A8CPYomltQoIdimIiaFyijYC5fYOjoVpCyabFyGZ4ZVdfx8X0sdMafiARklJ7z-ZvvQq03vkXZYcnk",
-    online: true,
-    city: "New York",
-    supportsVideo: true,
-    isFemale: false,
-  },
-  {
-    id: "gfag-afdgadga-adgad-adgdfagd",
-    name: "Dr. Emily Chen",
-    specialization: "Pediatrician",
-    rating: 4.8,
-    reviews: 85,
-    fee: 100,
-    nextSlot: "Tom, 10am",
-    clinic: "Kids Wellness Center, 45 Maple St, Brooklyn",
-    avatarUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDFLhDweYIPeaWTMZf4XESSyCFmcQRjA7e2bSIeoMY-869jaVRqcjLOJTWPTMikWBOEhTsC5hhPkILz1PIRNoXgZR6ZGKKf0o8Xic2aZR0qXDIeVFYQ-W70O1ZqcJVfVbFRJIqALsnzQ-G5xaQBuO-5fBA1lq8wsBOw-mi82k5FT7e6sh0qNMadyaLolHdgLmCYBWmJv4Dx_5Wyj5MC005rNJgLSuUoRcSN5weM53yY9ne5tjIVHV1rWKy0-Z68Mb11hXlLwKdN1_Q",
-    city: "Brooklyn",
-    supportsVideo: true,
-    isFemale: true,
-  },
-  {
-    id: "abdsf-asfdfashdf-asdfbas-asdfaysdf",
-    name: "Dr. Michael Brown",
-    specialization: "Neurologist",
-    rating: 5.0,
-    reviews: 210,
-    fee: 200,
-    availableToday: true,
-    clinic: "City General Hospital, 800 5th Ave, New York",
-    avatarUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuD6Hh95dv66FlTLY3Ga3Vip8mQ2sULBNMYaWwDqV8z3PvdNkrUVfXeX-XEDp5GLznupEVhoc-ueRnbSxDrOudkCAoWul3J1LDKnBKMRCBSnG8f66xbYDyU1X1w9aw0Qdq-G2FC2cE5IekKyzFqN-pKNb1oNsrduSYb0j9J7grv4FkcvLaCbkzBeQzmiUvvMAMb0drlorwDaClNvF07K3KqWct-nZSIAPMevMiH50rJH4X--L5X6HmDLmiW5K9St2DE4xfTIEUunroA",
-    online: true,
-    city: "New York",
-    supportsVideo: false,
-    isFemale: false,
-  },
-  {
-    id: "assdf-asdfabsdf-asghdf-asdfhasdf",
-    name: "Dr. Linda Davis",
-    specialization: "Dermatologist",
-    rating: 4.7,
-    reviews: 54,
-    fee: 120,
-    nextSlot: "Mon, 9am",
-    clinic: "Skin & Glow Clinic, 22 Park Ln, Queens",
-    avatarUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBHGdIYXLyd0elWa7ZZjv0f760lTCLzDyixhVdsuRmmM4hDYwoDnwRZHCJhWL59Cpj90wS2cUX25umhYB8212ImwcD5CoZ2L23k2geTyCB9KMn8z3dlre82NIOxs2bxoA2A0rS0BZ3IRwqQFBqCoyLlTMaHgckFCJu0Sz4XJA-c4TziVPShRgJUjk_jr1zzMxLC27NK6iDi19Iw0NPLTrcjPkNJL9z-1rt5JaAK0e431IadArvyps0fVIJr5Vcxa7JVHv6tYQXpGdE",
-    city: "Queens",
-    supportsVideo: true,
-    isFemale: true,
-  },
-  {
-    id: "assdf-assdfasdf-asdf-asdfagssdf",
-    name: "Dr. Robert Taylor",
-    specialization: "General Physician",
-    rating: 4.6,
-    reviews: 320,
-    fee: 80,
-    availableToday: true,
-    clinic: "Community Health, 99 Broadway, New York",
-    avatarUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuBOgvkt3rkm6RK2bXWAibgvF6UK0QjIdHFaBdlVTY-j3S37wD1eEgZGGWEI8g5KZdq3SGvVGAafKBJr3h4J40OBpD23i90YdbpGn8izqPsugZmXliTmm4zTYinz5x4OGqzr6J4_-l-v16HaZhWIUt0NNxFoadHr_gxfaSICbqbsazyn2SDKXtS5eyJJRYmJwBj4gOs2Z1a63ldTywY2AkdKKzCl8YtZua8THjI3dOvWdpulNmqlpeFfDHE1qnoOlgSsRdzPLxUF2as",
-    online: true,
-    city: "New York",
-    supportsVideo: true,
-    isFemale: false,
-  },
-  {
-    id: "asdf-asdfagfsdf-asgddf-asdfasdf",
-    name: "Dr. Sarah Lopez",
-    specialization: "Dentist",
-    rating: 4.9,
-    reviews: 98,
-    fee: 110,
-    nextSlot: "Fri, 2pm",
-    clinic: "Bright Smiles, 12 Elm St, Brooklyn",
-    avatarUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuCXW9VhpbSbJnFY6NgTh-DiSE1Q-3BrzOpBtTCMN6k-YOXoC-9Oq7x3Lz_3rmYLgYaogz6cGVKvxZ7BbOpN-ewJPkS_ycuc2GUmyZVnnxSBcZ028RmcSxKP57MxmaVS-5cFA_EHSZDe4HJhIbpoXdPKBfLwJDegLzjmfG2nZ_p7cBChWVJn0QCELWRGE4ysXwZf_e4v81P6Xq5eaSCZADDsDYhgw8CS8PeCV58rXYuQMikV-wjoQRE7K65RBjVPFkxjB0uHyOzLbsQ",
-    city: "Brooklyn",
-    supportsVideo: false,
-    isFemale: true,
-  },
-  {
-    id: "qwef-23asdfa-dsfas-1231",
-    name: "Dr. Priya Singh",
-    specialization: "Gynecologist",
-    rating: 4.8,
-    reviews: 145,
-    fee: 130,
-    nextSlot: "Wed, 4pm",
-    clinic: "Women's Wellness Clinic, 210 Oak Rd, Queens",
-    avatarUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDFLhDweYIPeaWTMZf4XESSyCFmcQRjA7e2bSIeoMY-869jaVRqcjLOJTWPTMikWBOEhTsC5hhPkILz1PIRNoXgZR6ZGKKf0o8Xic2aZR0qXDIeVFYQ-W70O1ZqcJVfVbFRJIqALsnzQ-G5xaQBuO-5fBA1lq8wsBOw-mi82k5FT7e6sh0qNMadyaLolHdgLmCYBWmJv4Dx_5Wyj5MC005rNJgLSuUoRcSN5weM53yY9ne5tjIVHV1rWKy0-Z68Mb11hXlLwKdN1_Q",
-    city: "Queens",
-    supportsVideo: true,
-    isFemale: true,
-  },
-  {
-    id: "zxcv-2342-asdf-0345",
-    name: "Dr. Ahmed Khan",
-    specialization: "Orthopedic Surgeon",
-    rating: 4.7,
-    reviews: 76,
-    fee: 140,
-    availableToday: true,
-    clinic: "OrthoCare Center, 67 River Ave, Brooklyn",
-    avatarUrl:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuD6Hh95dv66FlTLY3Ga3Vip8mQ2sULBNMYaWwDqV8z3PvdNkrUVfXeX-XEDp5GLznupEVhoc-ueRnbSxDrOudkCAoWul3J1LDKnBKMRCBSnG8f66xbYDyU1X1w9aw0Qdq-G2FC2cE5IekKyzFqN-pKNb1oNsrduSYb0j9J7grv4FkcvLaCbkzBeQzmiUvvMAMb0drlorwDaClNvF07K3KqWct-nZSIAPMevMiH50rJH4X--L5X6HmDLmiW5K9St2DE4xfTIEUunroA",
-    city: "Brooklyn",
-    online: true,
-    supportsVideo: false,
-    isFemale: false,
-  },
-];
 
 export default function DoctorsPageView() {
   const router = useRouter();
@@ -146,9 +19,81 @@ export default function DoctorsPageView() {
   const [availableTodayChip, setAvailableTodayChip] = useState(false);
   const [videoConsult, setVideoConsult] = useState(false);
   const [femaleDoctor, setFemaleDoctor] = useState(false);
-  const [priceMax, setPriceMax] = useState(250);
+  const [priceMax, setPriceMax] = useState(10000); // High default to show all doctors
   const [openFilter, setOpenFilter] = useState<null | "spec" | "avail" | "price">(null);
   const filtersRef = useRef<HTMLDivElement>(null!);
+
+  // State for API data
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch doctors from API
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Build query params
+        const params = new URLSearchParams();
+        
+        if (query.trim()) {
+          params.append('search', query.trim());
+        }
+        
+        if (location.trim()) {
+          params.append('city', location.trim());
+        }
+        
+        if (selectedSpecs.size > 0) {
+          params.append('specialization', Array.from(selectedSpecs)[0]); // Simplified: take first spec
+        }
+        
+        if (availableTodayChip || availability === 'today') {
+          params.append('availableToday', 'true');
+        }
+        
+        if (videoConsult) {
+          params.append('supportsVideo', 'true');
+        }
+        
+        if (femaleDoctor) {
+          params.append('isFemale', 'true');
+        }
+        
+        // Map sort to API params
+        if (sort === 'Top Rated') {
+          params.append('sortBy', 'rating');
+          params.append('sortOrder', 'desc');
+        } else if (sort === 'Low to High') {
+          params.append('sortBy', 'fee');
+          params.append('sortOrder', 'asc');
+        }
+
+        const response = await apiClient.get(`/doctors?${params.toString()}`);
+        console.log('API Response:', response.data);
+        console.log('Number of doctors:', response.data.length);
+        setDoctors(response.data);
+      } catch (err: any) {
+        console.error('Failed to fetch doctors:', err);
+        setError(err.response?.data?.message || 'Failed to load doctors');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDoctors();
+  }, [query, location, selectedSpecs, availableTodayChip, availability, videoConsult, femaleDoctor, sort]);
+
+  const toggleSpec = (spec: string) => {
+    setSelectedSpecs((prev) => {
+      const next = new Set(prev);
+      if (next.has(spec)) next.delete(spec);
+      else next.add(spec);
+      return next;
+    });
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -162,49 +107,14 @@ export default function DoctorsPageView() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const toggleSpec = (spec: string) => {
-    setSelectedSpecs((prev) => {
-      const next = new Set(prev);
-      if (next.has(spec)) next.delete(spec);
-      else next.add(spec);
-      return next;
-    });
-  };
-
+  // Filter doctors by price (backend handles other filters)
   const filteredDoctors = useMemo(() => {
-    let list = [...mockDoctors];
-
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      list = list.filter(
-        (d) =>
-          d.name.toLowerCase().includes(q) ||
-          d.specialization.toLowerCase().includes(q) ||
-          d.clinic.toLowerCase().includes(q)
-      );
-    }
-
-    if (location.trim()) {
-      const lq = location.toLowerCase();
-      list = list.filter((d) => (d.city || "").toLowerCase().includes(lq) || d.clinic.toLowerCase().includes(lq));
-    }
-
-    const requireToday = availability === "today" || availableTodayChip;
-    if (requireToday) list = list.filter((d) => d.availableToday);
-
-    if (selectedSpecs.size > 0) list = list.filter((d) => selectedSpecs.has(d.specialization));
-
-    if (typeof priceMax === "number") list = list.filter((d) => d.fee <= priceMax);
-
-    if (videoConsult) list = list.filter((d) => d.supportsVideo);
-    if (femaleDoctor) list = list.filter((d) => d.isFemale);
-
-    if (sort === "Price: Low to High") list.sort((a, b) => a.fee - b.fee);
-    else if (sort === "Price: High to Low") list.sort((a, b) => b.fee - a.fee);
-    else if (sort === "Rating") list.sort((a, b) => b.rating - a.rating);
-
-    return list;
-  }, [query, location, sort, availability, availableTodayChip, selectedSpecs, videoConsult, femaleDoctor, priceMax]);
+    const filtered = doctors.filter((d) => d.fee <= priceMax);
+    console.log('Doctors state:', doctors.length);
+    console.log('Filtered doctors:', filtered.length);
+    console.log('Price max:', priceMax);
+    return filtered;
+  }, [doctors, priceMax]);
 
   const onProfile = (id: string) => router.push(`/patient/doctor/${id}`);
   const nav = (path: string) => router.push(path);
@@ -241,15 +151,39 @@ export default function DoctorsPageView() {
           />
         </div>
 
-        {/* Results */}
-        <section className="w-full">
-          <div className="flex items-center justify-between mb-4 md:hidden">
-            <span className="text-sm font-bold text-text-main dark:text-white">{filteredDoctors.length} Doctors found</span>
-            <button className="text-primary text-sm font-bold">Sort</button>
-          </div>
+        {/* Loading State */}
+        {isLoading && (
+          <section className="w-full text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <p className="mt-4 text-text-secondary">Loading doctors...</p>
+          </section>
+        )}
 
-          <DoctorsGrid doctors={filteredDoctors} onProfile={onProfile} />
-        </section>
+        {/* Error State */}
+        {error && !isLoading && (
+          <section className="w-full text-center py-12">
+            <div className="text-red-500 text-lg font-semibold mb-2">Error loading doctors</div>
+            <p className="text-text-secondary mb-4">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark"
+            >
+              Retry
+            </button>
+          </section>
+        )}
+
+        {/* Results */}
+        {!isLoading && !error && (
+          <section className="w-full">
+            <div className="flex items-center justify-between mb-4 md:hidden">
+              <span className="text-sm font-bold text-text-main dark:text-white">{filteredDoctors.length} Doctors found</span>
+              <button className="text-primary text-sm font-bold">Sort</button>
+            </div>
+
+            <DoctorsGrid doctors={filteredDoctors} onProfile={onProfile} />
+          </section>
+        )}
       </main>
 
       {/* Footer */}

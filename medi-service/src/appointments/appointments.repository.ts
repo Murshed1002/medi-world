@@ -52,4 +52,42 @@ class AppointmentsRepositoryTx {
   async createPayment(data) {
     return this.prisma.payments.create({ data });
   }
+
+  async findClinicQueue(clinicId: string, doctorId: string, queueDate: Date) {
+    return this.prisma.clinic_queues.findFirst({
+      where: {
+        clinic_id: clinicId,
+        doctor_id: doctorId,
+        queue_date: queueDate,
+      },
+    });
+  }
+
+  async createClinicQueue(data: {
+    clinic_id: string;
+    doctor_id: string;
+    queue_date: Date;
+    status: string;
+    current_token_number: number;
+    last_issued_token_number: number;
+  }) {
+    return this.prisma.clinic_queues.create({ data });
+  }
+
+  async updateClinicQueue(id: string, data: { last_issued_token_number: number }) {
+    return this.prisma.clinic_queues.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async createQueueEntry(data: {
+    clinic_queue_id: string;
+    appointment_id: string;
+    token_number: number;
+    status: string;
+    check_in_time: Date;
+  }) {
+    return this.prisma.queue_entries.create({ data });
+  }
 }

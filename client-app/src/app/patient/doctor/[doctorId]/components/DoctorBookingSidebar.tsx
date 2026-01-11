@@ -170,7 +170,7 @@ export default function DoctorBookingSidebar({
               </div>
             </div>
             <div className="text-right">
-              <span className="font-bold text-slate-900 dark:text-white block">${fees.consultation.toFixed(2)}</span>
+              <span className="font-bold text-slate-900 dark:text-white block">₹{fees.consultation.toFixed(2)}</span>
               <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Pay at clinic</span>
             </div>
           </div>
@@ -186,7 +186,7 @@ export default function DoctorBookingSidebar({
               </div>
             </div>
             <div className="text-right">
-              <span className="font-bold text-slate-900 dark:text-white block">${fees.booking.toFixed(2)}</span>
+              <span className="font-bold text-slate-900 dark:text-white block">₹{fees.booking.toFixed(2)}</span>
               <span className="text-xs text-primary font-bold">Pay now</span>
             </div>
           </div>

@@ -35,3 +35,11 @@ ON queue_entries(clinic_queue_id);
 
 CREATE UNIQUE INDEX uniq_token_per_queue
 ON queue_entries(clinic_queue_id, token_number);
+
+ALTER TABLE clinic_queues 
+ADD CONSTRAINT chk_clinic_queue_status 
+CHECK (status IN ('NOT_STARTED', 'RUNNING', 'PAUSED', 'CLOSED'));
+
+ALTER TABLE queue_entries 
+ADD CONSTRAINT chk_queue_entry_status 
+CHECK (status IN ('WAITING', 'SKIPPED', 'IN_PROGRESS', 'COMPLETED'));

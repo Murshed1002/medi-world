@@ -118,6 +118,12 @@ model doctors {
   registration_number String?          @db.VarChar(120)
   experience_years    Int?
   is_verified         Boolean?         @default(false)
+  bio                 String?          @db.Text
+  rating              Decimal?         @default(0.0) @db.Decimal(3, 2)
+  reviews_count       Int?             @default(0)
+  profile_image_url   String?          @db.Text
+  gender              String?          @db.VarChar(10)
+  supports_video      Boolean?         @default(false)
   created_at          DateTime?        @default(now()) @db.Timestamp(6)
   appointments        appointments[]
   clinic_queues       clinic_queues[]
@@ -126,6 +132,9 @@ model doctors {
   auth_users          auth_users?      @relation(fields: [auth_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([specialization], map: "idx_doctors_specialization")
+  @@index([rating(sort: Desc)], map: "idx_doctors_rating")
+  @@index([gender], map: "idx_doctors_gender")
+  @@index([supports_video], map: "idx_doctors_supports_video")
 }
 
 model patients {
