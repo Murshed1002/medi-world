@@ -8,6 +8,7 @@ import {
   UseGuards,
   Delete,
   Param,
+  UnauthorizedException,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { OtpService } from '../services/otp.service';
@@ -48,10 +49,7 @@ export class AuthController {
     const verification = await this.otpService.verifyOtp(phone, otp);
 
     if (!verification.valid) {
-      return {
-        success: false,
-        message: verification.message,
-      };
+      throw new UnauthorizedException(verification.message || 'Invalid OTP');
     }
 
     // Authenticate user and generate tokens
@@ -137,7 +135,12 @@ export class AuthController {
     const refreshToken = req.cookies?.refresh_token;
 
     if (refreshToken) {
-      await this.authService.logout(refreshToken);
+      const logoutResult = await this.authService.logout(refreshToken);
+      
+      // Clear OTP verifications for this user to reset rate limiting
+      if (logoutResult.phoneNumber) {
+        await this.otpService.clearOtpVerifications(logoutResult.phoneNumber);
+      }
     }
 
     // Clear cookies

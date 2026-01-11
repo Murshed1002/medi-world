@@ -26,7 +26,7 @@ export class OtpService {
       },
     });
 
-    if (recentAttempts >= 3) {
+    if (recentAttempts >= 10) {
       throw new BadRequestException(
         'Too many OTP requests. Please try again after 15 minutes.',
       );
@@ -137,6 +137,16 @@ export class OtpService {
     // Generate cryptographically secure 6-digit OTP
     const otp = crypto.randomInt(100000, 999999).toString();
     return otp;
+  }
+
+  async clearOtpVerifications(phoneNumber: string): Promise<void> {
+    // Delete all OTP verifications for this phone number
+    await this.prisma.otp_verifications.deleteMany({
+      where: {
+        phone_number: phoneNumber,
+      },
+    });
+    this.logger.log(`Cleared OTP verifications for ${phoneNumber}`);
   }
 
   private async sendSms(phoneNumber: string, otp: string): Promise<void> {

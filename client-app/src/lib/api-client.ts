@@ -14,8 +14,13 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If 401 and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Don't retry auth endpoints (they legitimately return 401 for invalid credentials)
+    const isAuthEndpoint = originalRequest.url?.includes('/auth/send-otp') || 
+                          originalRequest.url?.includes('/auth/verify-otp') ||
+                          originalRequest.url?.includes('/auth/login');
+
+    // If 401 and we haven't retried yet and it's not an auth endpoint
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {

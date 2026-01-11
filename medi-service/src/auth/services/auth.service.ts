@@ -177,10 +177,13 @@ export class AuthService {
     return newTokens;
   }
 
-  async logout(refreshToken: string): Promise<{ success: boolean }> {
-    // Find all non-revoked tokens
+  async logout(refreshToken: string): Promise<{ success: boolean; phoneNumber?: string }> {
+    // Find all non-revoked tokens with user information
     const tokens = await this.prisma.refresh_tokens.findMany({
       where: { revoked: false },
+      include: {
+        auth_users: true,
+      },
     });
 
     // Find and revoke matching token
@@ -194,7 +197,7 @@ export class AuthService {
             revoked_at: new Date(),
           },
         });
-        return { success: true };
+        return { success: true, phoneNumber: token.auth_users.phone_number };
       }
     }
 
