@@ -16,10 +16,61 @@ export class AppointmentsRepository {
   async findAllAppointments() {
     return this.prisma.appointments.findMany();
   }
+
+  async findAppointmentById(id: string) {
+    return this.prisma.appointments.findUnique({
+      where: { id },
+      include: {
+        doctors: true,
+        clinics: true,
+        patients: true,
+      },
+    });
+  }
+
+  async updateAppointment(id: string, data: Partial<{ status: AppointmentStatus }>) {
+    return this.prisma.appointments.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async findPaymentByAppointmentId(appointmentId: string) {
+    return this.prisma.payments.findFirst({
+      where: {
+        reference_type: 'APPOINTMENT',
+        reference_id: appointmentId,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+  }
 }
 
 class AppointmentsRepositoryTx {
   constructor(private readonly prisma) {}
+
+  async findPatientByAuthUserId(authUserId: string) {
+    return this.prisma.patients.findUnique({
+      where: { auth_user_id: authUserId }
+    });
+  }
+
+  async getDoctorClinicFees(doctorId: string, clinicId: string) {
+    return this.prisma.doctor_clinics.findUnique({
+      where: {
+        doctor_id_clinic_id: {
+          doctor_id: doctorId,
+          clinic_id: clinicId
+        }
+      },
+      select: {
+        booking_fee: true,
+        consultation_fee: true
+      }
+    });
+  }
 
   async isSlotBooked(
     doctorId: string,
@@ -27,22 +78,72 @@ class AppointmentsRepositoryTx {
     date: string,
     slotStartTime: string,
   ) {
+    // Convert time string (HH:mm) to DateTime (date part is ignored by TIME column)
+    const timeAsDateTime = new Date(`1970-01-01T${slotStartTime}:00.000Z`);
+    
+    // Calculate expiry time for pending payments (15 minutes ago)
+    const paymentExpiryTime = new Date();
+    paymentExpiryTime.setMinutes(paymentExpiryTime.getMinutes() - 15);
+    
     const count = await this.prisma.appointments.count({
       where: {
-        doctorId,
-        clinicId,
-        appointmentDate: new Date(date),
-        slotStartTime,
-        status: {
-          in: [
-            AppointmentStatus.PAYMENT_PENDING,
-            AppointmentStatus.CONFIRMED,
-          ],
-        },
+        doctor_id: doctorId,
+        clinic_id: clinicId,
+        appointment_date: new Date(date),
+        slot_start_time: timeAsDateTime,
+        OR: [
+          {
+            // Confirmed appointments always block the slot
+            status: AppointmentStatus.CONFIRMED,
+          },
+          {
+            // Payment pending appointments only block if created within last 15 minutes
+            status: AppointmentStatus.PAYMENT_PENDING,
+            created_at: {
+              gte: paymentExpiryTime,
+            },
+          },
+        ],
       },
     });
 
     return count > 0;
+  }
+
+  async findPendingAppointment(
+    patientId: string,
+    doctorId: string,
+    clinicId: string,
+    date: string,
+    slotStartTime: string,
+  ) {
+    const timeAsDateTime = new Date(`1970-01-01T${slotStartTime}:00.000Z`);
+    
+    return this.prisma.appointments.findFirst({
+      where: {
+        patient_id: patientId,
+        doctor_id: doctorId,
+        clinic_id: clinicId,
+        appointment_date: new Date(date),
+        slot_start_time: timeAsDateTime,
+        status: AppointmentStatus.PAYMENT_PENDING,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+  }
+
+  async findPaymentByAppointmentId(appointmentId: string) {
+    return this.prisma.payments.findFirst({
+      where: {
+        reference_type: 'APPOINTMENT',
+        reference_id: appointmentId,
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
   }
 
   async createAppointment(data) {

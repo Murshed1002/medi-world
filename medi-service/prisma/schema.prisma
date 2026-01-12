@@ -8,24 +8,22 @@ datasource db {
 }
 
 model appointments {
-  id                 String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  patient_id         String?          @db.Uuid
-  doctor_id          String?          @db.Uuid
-  clinic_id          String?          @db.Uuid
-  appointment_date   DateTime         @db.Date
-  slot_start_time    DateTime         @db.Time(6)
-  slot_end_time      DateTime         @db.Time(6)
-  status             String           @db.VarChar(30)
-  booking_fee_amount Decimal?         @db.Decimal(10, 2)
-  paid_amount        Decimal?         @default(0) @db.Decimal(10, 2)
+  id                 String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  patient_id         String?         @db.Uuid
+  doctor_id          String?         @db.Uuid
+  clinic_id          String?         @db.Uuid
+  appointment_date   DateTime        @db.Date
+  slot_start_time    DateTime        @db.Time(6)
+  slot_end_time      DateTime        @db.Time(6)
+  status             String          @db.VarChar(30)
+  booking_fee_amount Decimal?        @db.Decimal(10, 2)
+  paid_amount        Decimal?        @default(0) @db.Decimal(10, 2)
   queue_token_number Int?
-  created_at         DateTime?        @default(now()) @db.Timestamp(6)
-  updated_at         DateTime?        @default(now()) @db.Timestamp(6)
-  clinics            clinics?         @relation(fields: [clinic_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  doctors            doctors?         @relation(fields: [doctor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  patients           patients?        @relation(fields: [patient_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  doctor_reviews     doctor_reviews[]
-  payments           payments[]
+  created_at         DateTime?       @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?       @default(now()) @db.Timestamp(6)
+  clinics            clinics?        @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  doctors            doctors?        @relation(fields: [doctor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  patients           patients?       @relation(fields: [patient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   queue_entries      queue_entries[]
 
   @@index([doctor_id, appointment_date], map: "idx_appt_doctor_date")
@@ -40,6 +38,10 @@ model audit_logs {
   performed_by String?   @db.Uuid
   meta         Json?
   created_at   DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([created_at(sort: Desc)], map: "idx_audit_logs_created")
+  @@index([entity_type, entity_id], map: "idx_audit_logs_entity")
+  @@index([performed_by], map: "idx_audit_logs_user")
 }
 
 model auth_users {
@@ -66,11 +68,12 @@ model clinic_queues {
   last_issued_token_number Int?            @default(0)
   status                   String?         @db.VarChar(20)
   created_at               DateTime?       @default(now()) @db.Timestamp(6)
-  clinics                  clinics?        @relation(fields: [clinic_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  doctors                  doctors?        @relation(fields: [doctor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  clinics                  clinics?        @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  doctors                  doctors?        @relation(fields: [doctor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   queue_entries            queue_entries[]
 
   @@unique([clinic_id, doctor_id, queue_date])
+  @@index([queue_date], map: "idx_clinic_queues_date")
 }
 
 model clinics {
@@ -85,6 +88,8 @@ model clinics {
   clinic_queues  clinic_queues[]
   doctor_clinics doctor_clinics[]
   doctor_slots   doctor_slots[]
+
+  @@index([city], map: "idx_clinics_city")
 }
 
 model doctor_clinics {
@@ -107,8 +112,10 @@ model doctor_slots {
   end_time              DateTime @db.Time(6)
   slot_duration_minutes Int
   max_patients_per_slot Int?     @default(1)
-  clinics               clinics? @relation(fields: [clinic_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  doctors               doctors? @relation(fields: [doctor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  clinics               clinics? @relation(fields: [clinic_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  doctors               doctors? @relation(fields: [doctor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([doctor_id, clinic_id], map: "idx_doctor_slots_doctor_clinic")
 }
 
 model doctors {
@@ -135,44 +142,51 @@ model doctors {
 
   @@index([specialization], map: "idx_doctors_specialization")
   @@index([rating(sort: Desc)], map: "idx_doctors_rating")
-  @@index([gender], map: "idx_doctors_gender")
-  @@index([supports_video], map: "idx_doctors_supports_video")
 }
 
 model patients {
   id                         String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   auth_user_id               String?          @unique @db.Uuid
-  full_name                  String?          @db.VarChar(255)
+  full_name                  String           @db.VarChar(255)
+  date_of_birth              DateTime?        @db.Date
   gender                     String?          @db.VarChar(10)
-  dob                        DateTime?        @db.Date
+  blood_group                String?          @db.VarChar(5)
+  address                    String?
+  city                       String?          @db.VarChar(120)
   created_at                 DateTime?        @default(now()) @db.Timestamp(6)
   emergency_contact_name     String?          @db.VarChar(255)
   emergency_contact_relation String?          @db.VarChar(50)
-  emergency_contact_phone    String?          @db.VarChar(20)
+  emergency_contact_phone    String?          @db.VarChar(15)
   appointments               appointments[]
   doctor_reviews             doctor_reviews[]
   auth_users                 auth_users?      @relation(fields: [auth_user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   payments                   payments[]
+
+  @@index([auth_user_id], map: "idx_patients_auth_user")
 }
 
 model payments {
-  id                  String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  appointment_id      String?       @db.Uuid
-  patient_id          String?       @db.Uuid
-  amount              Decimal       @db.Decimal(10, 2)
-  currency            String?       @default("INR") @db.VarChar(5)
-  payment_type        String?       @db.VarChar(40)
-  payment_method      String?       @db.VarChar(40)
-  provider            String?       @db.VarChar(40)
-  provider_order_id   String?       @db.VarChar(255)
-  provider_payment_id String?       @db.VarChar(255)
-  status              String        @db.VarChar(30)
-  created_at          DateTime?     @default(now()) @db.Timestamp(6)
-  appointments        appointments? @relation(fields: [appointment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  patients            patients?     @relation(fields: [patient_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                  String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  patient_id          String    @db.Uuid
+  amount              Decimal   @db.Decimal(10, 2)
+  currency            String?   @default("INR") @db.VarChar(5)
+  payment_type        String    @db.VarChar(40)
+  payment_method      String?   @db.VarChar(40)
+  provider            String?   @db.VarChar(40)
+  provider_order_id   String?   @db.VarChar(255)
+  provider_payment_id String?   @db.VarChar(255)
+  status              String    @db.VarChar(30)
+  metadata            Json?
+  created_at          DateTime? @default(now()) @db.Timestamp(6)
+  reference_type      String    @db.VarChar(40)
+  reference_id        String    @db.Uuid
+  updated_at          DateTime? @default(now()) @db.Timestamp(6)
+  patients            patients  @relation(fields: [patient_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([appointment_id], map: "idx_payments_appt")
   @@index([provider_order_id], map: "idx_payments_provider")
+  @@index([reference_type, reference_id], map: "idx_payments_reference")
+  @@index([patient_id, created_at(sort: Desc)], map: "idx_payments_patient")
+  @@index([status, created_at(sort: Desc)], map: "idx_payments_status")
 }
 
 model queue_entries {
@@ -180,14 +194,16 @@ model queue_entries {
   clinic_queue_id String?        @db.Uuid
   appointment_id  String?        @db.Uuid
   token_number    Int
-  status          String?        @db.VarChar(20)
+  status          String         @db.VarChar(20)
   check_in_time   DateTime?      @db.Timestamp(6)
-  served_time     DateTime?      @db.Timestamp(6)
-  appointments    appointments?  @relation(fields: [appointment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  clinic_queues   clinic_queues? @relation(fields: [clinic_queue_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  call_time       DateTime?      @db.Timestamp(6)
+  start_time      DateTime?      @db.Timestamp(6)
+  end_time        DateTime?      @db.Timestamp(6)
+  appointments    appointments?  @relation(fields: [appointment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  clinic_queues   clinic_queues? @relation(fields: [clinic_queue_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@unique([clinic_queue_id, token_number], map: "uniq_token_per_queue")
   @@index([clinic_queue_id], map: "idx_queue_entries_queue")
+  @@index([appointment_id], map: "idx_queue_entries_appointment")
 }
 
 model schema_migrations {
@@ -196,64 +212,55 @@ model schema_migrations {
   applied_at DateTime? @default(now()) @db.Timestamp(6)
 }
 
-model otp_verifications {
-  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  phone_number String    @db.VarChar(15)
-  otp_hash     String    @db.VarChar(255)
-  attempts     Int?      @default(0)
-  max_attempts Int?      @default(3)
-  expires_at   DateTime  @db.Timestamp(6)
-  verified     Boolean?  @default(false)
-  verified_at  DateTime? @db.Timestamp(6)
-  ip_address   String?   @db.VarChar(45)
-  user_agent   String?
-  created_at   DateTime? @default(now()) @db.Timestamp(6)
-
-  @@index([expires_at], map: "idx_otp_expires_at")
-  @@index([phone_number, created_at(sort: Desc)], map: "idx_otp_phone_number")
-}
-
 model refresh_tokens {
   id                   String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   user_id              String           @db.Uuid
-  token_hash           String           @unique @db.VarChar(255)
-  expires_at           DateTime         @db.Timestamp(6)
-  revoked              Boolean?         @default(false)
-  revoked_at           DateTime?        @db.Timestamp(6)
+  token_hash           String           @db.VarChar(255)
   ip_address           String?          @db.VarChar(45)
   user_agent           String?
   device_info          Json?
+  expires_at           DateTime         @db.Timestamp(6)
+  revoked              Boolean?         @default(false)
+  revoked_at           DateTime?        @db.Timestamp(6)
   replaced_by          String?          @db.Uuid
   created_at           DateTime?        @default(now()) @db.Timestamp(6)
   refresh_tokens       refresh_tokens?  @relation("refresh_tokensTorefresh_tokens", fields: [replaced_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   other_refresh_tokens refresh_tokens[] @relation("refresh_tokensTorefresh_tokens")
   auth_users           auth_users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@index([user_id, revoked, expires_at(sort: Desc)], map: "idx_refresh_tokens_user")
+  @@index([user_id], map: "idx_refresh_tokens_user")
+  @@index([token_hash], map: "idx_refresh_tokens_hash")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model doctor_reviews {
-  id                 String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  doctor_id          String        @db.Uuid
-  patient_id         String        @db.Uuid
-  appointment_id     String?       @db.Uuid
-  rating             Decimal       @db.Decimal(2, 1)
-  review_text        String?
-  helpful_count      Int?          @default(0)
-  doctor_response    String?
-  doctor_response_at DateTime?     @db.Timestamp(6)
-  is_verified        Boolean?      @default(false)
-  is_anonymous       Boolean?      @default(false)
-  created_at         DateTime?     @default(now()) @db.Timestamp(6)
-  updated_at         DateTime?     @default(now()) @db.Timestamp(6)
-  appointments       appointments? @relation(fields: [appointment_id], references: [id], onUpdate: NoAction)
-  doctors            doctors       @relation(fields: [doctor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  patients           patients      @relation(fields: [patient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id             String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  doctor_id      String?   @db.Uuid
+  patient_id     String?   @db.Uuid
+  appointment_id String?   @db.Uuid
+  rating         Int
+  review_text    String?
+  helpful_count  Int?      @default(0)
+  is_verified    Boolean?  @default(false)
+  is_anonymous   Boolean?  @default(false)
+  created_at     DateTime? @default(now()) @db.Timestamp(6)
+  doctors        doctors?  @relation(fields: [doctor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  patients       patients? @relation(fields: [patient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
-  @@index([created_at(sort: Desc)], map: "idx_doctor_reviews_created")
   @@index([doctor_id], map: "idx_doctor_reviews_doctor")
   @@index([patient_id], map: "idx_doctor_reviews_patient")
-  @@index([rating(sort: Desc)], map: "idx_doctor_reviews_rating")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model webhook_events {
+  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  provider   String    @db.VarChar(40)
+  event_id   String    @db.VarChar(255)
+  event_type String?   @db.VarChar(100)
+  payload    Json?
+  processed  Boolean?  @default(false)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+
+  @@unique([provider, event_id], map: "idx_webhook_events_unique")
 }

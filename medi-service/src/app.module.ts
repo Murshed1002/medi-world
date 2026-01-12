@@ -6,7 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
-import { AppointmentsModule } from './appointments/Appointments.module';
+import { AppointmentsModule } from './appointments/appointments.module';
 import { PaymentModule } from './payments/payment.module';
 import { AuthModule } from './auth/auth.module';
 import { PatientsModule } from './patients/patients.module';

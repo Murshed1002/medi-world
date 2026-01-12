@@ -1,11 +1,7 @@
 CREATE TABLE payments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
 
-  -- Polymorphic reference: points to appointment, medicine_order, lab_test, etc.
-  reference_type VARCHAR(40) NOT NULL,
-  -- APPOINTMENT / MEDICINE_ORDER / LAB_TEST / CONSULTATION
-  reference_id UUID NOT NULL,
-  
+  appointment_id UUID REFERENCES appointments(id),
   patient_id UUID REFERENCES patients(id) NOT NULL,
 
   amount DECIMAL(10,2) NOT NULL,
@@ -29,13 +25,12 @@ CREATE TABLE payments (
   metadata JSONB,
   -- Store additional context like items, delivery address, etc.
 
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
+  created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Index for looking up payments by the entity they're for
-CREATE INDEX idx_payments_reference 
-ON payments(reference_type, reference_id);
+-- Index for appointment payments
+CREATE INDEX idx_payments_appt
+ON payments(appointment_id);
 
 -- Index for patient payment history
 CREATE INDEX idx_payments_patient
@@ -43,7 +38,7 @@ ON payments(patient_id, created_at DESC);
 
 -- Index for provider reconciliation
 CREATE INDEX idx_payments_provider
-ON payments(provider, provider_order_id);
+ON payments(provider_order_id);
 
 -- Index for status-based queries
 CREATE INDEX idx_payments_status

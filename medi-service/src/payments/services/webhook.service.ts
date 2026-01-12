@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../../common/prisma/prisma.service';
 import { PaymentService } from './payment.service';
 import { PaymentStatus, PaymentProvider } from '../types/payment.types';
 
@@ -6,10 +7,68 @@ import { PaymentStatus, PaymentProvider } from '../types/payment.types';
 export class WebhookService {
   private readonly logger = new Logger(WebhookService.name);
 
-  constructor(private readonly paymentService: PaymentService) {}
+  constructor(
+    private readonly paymentService: PaymentService,
+    private readonly prisma: PrismaService,
+  ) {}
+
+  private async checkAndRecordWebhookEvent(
+    provider: string,
+    eventId: string,
+    eventType: string,
+    payload: any,
+  ): Promise<boolean> {
+    try {
+      // Try to insert the webhook event - will fail if duplicate due to unique constraint
+      await this.prisma.$executeRaw`
+        INSERT INTO webhook_events (provider, event_id, event_type, payload, processed)
+        VALUES (${provider}, ${eventId}, ${eventType}, ${JSON.stringify(payload)}::jsonb, false)
+      `;
+      
+      return true;
+    } catch (error: any) {
+      // Check if it's a unique constraint violation
+      if (error.code === '23505' || error.message?.includes('unique constraint')) {
+        this.logger.warn(`Duplicate webhook event detected: ${provider}:${eventId}`);
+        return false;
+      }
+      
+      this.logger.error('Error checking webhook event:', error);
+      // In case of other errors, allow processing (fail open)
+      return true;
+    }
+  }
+
+  private async markWebhookProcessed(provider: string, eventId: string) {
+    try {
+      await this.prisma.$executeRaw`
+        UPDATE webhook_events
+        SET processed = true, processed_at = NOW()
+        WHERE provider = ${provider} AND event_id = ${eventId}
+      `;
+    } catch (error) {
+      this.logger.error('Error marking webhook as processed:', error);
+    }
+  }
 
   async handleRazorpayWebhook(event: any) {
     this.logger.log(`Received Razorpay webhook: ${event.event}`);
+
+    // Extract event ID for idempotency
+    const eventId = event.id || event.payload?.payment?.entity?.id || `unknown_${Date.now()}`;
+
+    // Check if this event was already processed
+    const isNew = await this.checkAndRecordWebhookEvent(
+      'RAZORPAY',
+      eventId,
+      event.event,
+      event,
+    );
+
+    if (!isNew) {
+      this.logger.log(`Skipping duplicate Razorpay webhook: ${eventId}`);
+      return { success: true, duplicate: true };
+    }
 
     try {
       switch (event.event) {
@@ -37,6 +96,9 @@ export class WebhookService {
           this.logger.warn(`Unhandled Razorpay event: ${event.event}`);
       }
 
+      // Mark as processed
+      await this.markWebhookProcessed('RAZORPAY', eventId);
+
       return { success: true };
     } catch (error) {
       this.logger.error(`Error processing Razorpay webhook:`, error);
@@ -46,6 +108,22 @@ export class WebhookService {
 
   async handleStripeWebhook(event: any) {
     this.logger.log(`Received Stripe webhook: ${event.type}`);
+
+    // Stripe events have an 'id' field
+    const eventId = event.id;
+
+    // Check if this event was already processed
+    const isNew = await this.checkAndRecordWebhookEvent(
+      'STRIPE',
+      eventId,
+      event.type,
+      event,
+    );
+
+    if (!isNew) {
+      this.logger.log(`Skipping duplicate Stripe webhook: ${eventId}`);
+      return { success: true, duplicate: true };
+    }
 
     try {
       switch (event.type) {
@@ -68,6 +146,9 @@ export class WebhookService {
         default:
           this.logger.warn(`Unhandled Stripe event: ${event.type}`);
       }
+
+      // Mark as processed
+      await this.markWebhookProcessed('STRIPE', eventId);
 
       return { success: true };
     } catch (error) {

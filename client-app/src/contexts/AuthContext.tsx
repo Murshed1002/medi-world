@@ -175,6 +175,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     const initializeAuth = async () => {
+      // Skip auth check on login and verify-otp pages
+      if (typeof window !== 'undefined') {
+        const currentPath = window.location.pathname;
+        if (currentPath.includes('/login') || currentPath.includes('/verify-otp')) {
+          setState({
+            user: null,
+            tokens: null,
+            isLoading: false,
+            isAuthenticated: false,
+          });
+          return;
+        }
+      }
+
       try {
         // Try to fetch current user (cookies will be sent automatically)
         const response = await apiClient.get<User>('/auth/me');

@@ -6,6 +6,7 @@ import { OtpService } from './services/otp.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { RedisModule } from '../common/redis/redis.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { PrismaService } from '../common/prisma/prisma.service';
         expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m' as any,
       },
     }),
+    RedisModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, OtpService, JwtAuthGuard, RolesGuard, PrismaService],

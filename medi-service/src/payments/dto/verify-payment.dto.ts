@@ -1,19 +1,19 @@
-import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsString, IsUUID, IsOptional } from 'class-validator';
 
 export class VerifyPaymentDto {
+  @IsOptional()
   @IsUUID()
-  @IsNotEmpty()
-  payment_id: string;
+  payment_id?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  provider_order_id: string;
+  provider_order_id?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  provider_payment_id: string;
+  provider_payment_id?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  signature: string;
+  signature?: string;
 }

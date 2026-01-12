@@ -1,192 +1,387 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import PaymentSummary from "./components/PaymentSummary";
-import PaymentMethods from "./components/PaymentMethods";
-import PaymentStatus from "./components/PaymentStatus";
-import MedicalServicesIcon from "@mui/icons-material/MedicalServices";
-import NotificationsIcon from "@mui/icons-material/Notifications";
-import AccountCircleIcon from "@mui/icons-material/AccountCircle";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { apiClient } from "@/lib/api-client";
 import LockIcon from "@mui/icons-material/Lock";
-import type { PaymentIntent, PaymentPurpose, PaymentStatusType } from "./types";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import ErrorIcon from "@mui/icons-material/Error";
+import HourglassBottomIcon from "@mui/icons-material/HourglassBottom";
+import PaymentIcon from "@mui/icons-material/Payment";
+import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
+import ShieldIcon from "@mui/icons-material/Shield";
 
-function mockFetchPaymentIntent(id: string): Promise<PaymentIntent> {
-  const base = {
-    id,
-    currency: "INR",
-    status: "CREATED" as const,
-  };
+type PaymentStatusType = "CREATED" | "PENDING" | "PAID" | "FAILED";
 
-  // Very simple purpose detection based on id string; replace with real fetch in backend
-  const purpose: PaymentPurpose = id.toLowerCase().includes("med")
-    ? "MEDICINE"
-    : id.toLowerCase().includes("lab")
-    ? "LAB"
-    : "APPOINTMENT";
+interface Payment {
+  id: string;
+  amount: number | string;
+  currency: string;
+  status: PaymentStatusType;
+  reference_type: string;
+  reference_id: string;
+}
 
-  if (purpose === "APPOINTMENT") {
-    return Promise.resolve({
-      ...base,
-      purpose,
-      reference_id: "apt-12345",
-      amount: 200,
-      context: {
-        title: "Doctor Consultation",
-        subtitle: "Dr. Emily Chen · Cardiologist",
-        meta: [
-          { label: "Appointment Time", value: "Oct 24, 10:00 AM", icon: "CalendarMonth" },
-          { label: "Patient Name", value: "John Doe", icon: "Person" },
-        ],
-        policyTitle: "Cancellation & Refund Policy",
-        policyText:
-          "Cancellations made 24 hours prior to the appointment are eligible for a full refund of the booking fee. No refunds for late cancellations.",
-      },
-    });
+async function fetchPayment(id: string): Promise<Payment> {
+  try {
+    const response = await apiClient.get(`/payments/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch payment:', error);
+    throw error;
   }
-
-  if (purpose === "MEDICINE") {
-    return Promise.resolve({
-      ...base,
-      purpose,
-      reference_id: "ord-29381",
-      amount: 1150,
-      context: {
-        title: "Medicine Order",
-        subtitle: "Pharmacy Delivery · Home",
-        items: [
-          { title: "Atorva 20mg Tablet", note: "Strip of 15 tabs", amount: 380, qty: 2, icon: "healing" },
-          { title: "Benadryl Cough Syrup", note: "150ml Bottle", amount: 125, qty: 1, icon: "medication" },
-          { title: "Pan 40 Tablet", note: "Strip of 15 tabs", amount: 450, qty: 3, icon: "pill" },
-          { title: "Shelcal 500mg", note: "Bottle of 30 tabs", amount: 295, qty: 1, icon: "prescriptions" },
-        ],
-        meta: [
-          { label: "Delivery Estimate", value: "Tomorrow, 4 PM", icon: "LocalShipping" },
-          { label: "Patient Name", value: "John Doe", icon: "Person" },
-        ],
-        policyTitle: "Return Policy",
-        policyText:
-          "Medicines are non-returnable once the seal is broken. Returns for damaged or incorrect items are accepted within 7 days of delivery.",
-      },
-    });
-  }
-
-  return Promise.resolve({
-    ...base,
-    purpose: "LAB",
-    reference_id: "rep-88291",
-    amount: 500,
-    context: {
-      title: "Medical Test Report",
-      subtitle: "Complete Blood Count · Pathology",
-      items: [
-        { title: "Complete Blood Count", note: "Ready for Download", amount: 450, icon: "Biotech" },
-        { title: "Service Charge", note: "Platform Processing Fee", amount: 50, icon: "ReceiptLong" },
-      ],
-      meta: [{ label: "Patient Name", value: "John Doe", icon: "Person" }],
-      policyTitle: "Refund Policy",
-      policyText:
-        "Payment for medical reports is non-refundable once the test sample has been processed. If you believe there is an error in the billing, please contact support before paying.",
-    },
-  });
 }
 
 export default function PaymentPageView({ paymentIntentId }: { paymentIntentId: string }) {
-  const [intent, setIntent] = useState<PaymentIntent | null>(null);
+  const router = useRouter();
+  const [payment, setPayment] = useState<Payment | null>(null);
   const [status, setStatus] = useState<PaymentStatusType>("CREATED");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
-    mockFetchPaymentIntent(paymentIntentId).then((pi) => {
-      if (!mounted) return;
-      setIntent(pi);
-      setStatus(pi.status);
-    });
+    
+    const loadPayment = async () => {
+      try {
+        const paymentData = await fetchPayment(paymentIntentId);
+        if (!mounted) return;
+        setPayment(paymentData);
+        setStatus(paymentData.status);
+      } catch (err) {
+        console.error('Failed to load payment:', err);
+        if (mounted) {
+          setError('Failed to load payment details');
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadPayment();
+    
     return () => {
       mounted = false;
     };
-  }, [paymentIntentId]);
+  }, [paymentIntentId, router]);
 
-  const amount = useMemo(() => intent?.amount ?? 0, [intent]);
-
-  const onPay = async (method: string) => {
-    // Simulate gateway redirect/modal and result
-    setStatus("PENDING");
-    await new Promise((r) => setTimeout(r, 1200));
-    // Randomize outcome lightly for demo; replace with real gateway callback
-    const ok = Math.random() > 0.1;
-    setStatus(ok ? "PAID" : "FAILED");
+  const handlePayment = async () => {
+    if (!payment) return;
+    
+    try {
+      setStatus("PENDING");
+      
+      // ============================================================================
+      // DEVELOPMENT MODE - Mock Payment (Currently Active)
+      // ============================================================================
+      // Simulate payment gateway response time
+      await new Promise((r) => setTimeout(r, 1200));
+      
+      // Send payment verification data
+      // Backend will determine if it's dev mode and bypass accordingly
+      await apiClient.post(`/payments/${paymentIntentId}/verify`, {
+        payment_id: paymentIntentId,
+        provider_order_id: `order_${Date.now()}`,
+        provider_payment_id: `pay_${Date.now()}`,
+        signature: `sig_${Date.now()}`,
+      });
+      
+      setStatus('PAID');
+      
+      setTimeout(() => {
+        if (payment.reference_type === 'APPOINTMENT') {
+          router.push(`/patient/confirmation/${payment.reference_id}`);
+        }
+      }, 1000);
+      
+      // ============================================================================
+      // PRODUCTION MODE - Razorpay Integration (Commented Out)
+      // ============================================================================
+      // Step 1: Load Razorpay SDK dynamically (if not already loaded)
+      // const loadRazorpay = () => {
+      //   return new Promise((resolve) => {
+      //     const script = document.createElement('script');
+      //     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      //     script.onload = () => resolve(true);
+      //     script.onerror = () => resolve(false);
+      //     document.body.appendChild(script);
+      //   });
+      // };
+      //
+      // const razorpayLoaded = await loadRazorpay();
+      // if (!razorpayLoaded) {
+      //   throw new Error('Failed to load Razorpay SDK');
+      // }
+      //
+      // Step 2: Create Razorpay order from backend
+      // const orderResponse = await apiClient.post(`/payments/${paymentIntentId}/create-order`);
+      // const { provider_order_id, amount, currency } = orderResponse.data;
+      //
+      // Step 3: Configure Razorpay options
+      // const options = {
+      //   key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID, // Add to .env.local
+      //   amount: amount * 100, // Razorpay expects amount in paise
+      //   currency: currency,
+      //   name: 'MediWorld',
+      //   description: payment.reference_type === 'APPOINTMENT' ? 'Appointment Booking' : 'Payment',
+      //   order_id: provider_order_id,
+      //   handler: async (response: any) => {
+      //     // Payment successful - verify with backend
+      //     try {
+      //       await apiClient.post(`/payments/${paymentIntentId}/verify`, {
+      //         payment_id: paymentIntentId,
+      //         provider_order_id: response.razorpay_order_id,
+      //         provider_payment_id: response.razorpay_payment_id,
+      //         signature: response.razorpay_signature,
+      //       });
+      //       
+      //       setStatus('PAID');
+      //       
+      //       setTimeout(() => {
+      //         if (payment.reference_type === 'APPOINTMENT') {
+      //           router.push(`/patient/confirmation/${payment.reference_id}`);
+      //         }
+      //       }, 1000);
+      //     } catch (err) {
+      //       console.error('Payment verification failed:', err);
+      //       setStatus('FAILED');
+      //     }
+      //   },
+      //   modal: {
+      //     ondismiss: () => {
+      //       // User closed the payment modal
+      //       setStatus('FAILED');
+      //     }
+      //   },
+      //   prefill: {
+      //     name: '', // Get from user profile
+      //     email: '', // Get from user profile
+      //     contact: '', // Get from user profile
+      //   },
+      //   theme: {
+      //     color: '#16a34a', // Green-600 to match our theme
+      //   },
+      //   retry: {
+      //     enabled: true,
+      //     max_count: 3,
+      //   },
+      // };
+      //
+      // Step 4: Open Razorpay payment modal
+      // const razorpay = new (window as any).Razorpay(options);
+      // razorpay.on('payment.failed', (response: any) => {
+      //   console.error('Payment failed:', response.error);
+      //   setStatus('FAILED');
+      // });
+      // razorpay.open();
+      
+      // ============================================================================
+      // PRODUCTION MODE - Stripe Integration (Alternative - Commented Out)
+      // ============================================================================
+      // Step 1: Load Stripe SDK (install: npm install @stripe/stripe-js)
+      // import { loadStripe } from '@stripe/stripe-js';
+      // const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+      // if (!stripe) {
+      //   throw new Error('Failed to load Stripe');
+      // }
+      //
+      // Step 2: Create payment intent from backend
+      // const intentResponse = await apiClient.post(`/payments/${paymentIntentId}/create-stripe-intent`);
+      // const { client_secret } = intentResponse.data;
+      //
+      // Step 3: Confirm payment with Stripe
+      // const { error, paymentIntent } = await stripe.confirmCardPayment(client_secret, {
+      //   payment_method: {
+      //     card: {}, // Card element from Stripe Elements
+      //     billing_details: {
+      //       name: '', // Get from form
+      //       email: '', // Get from form
+      //     },
+      //   },
+      // });
+      //
+      // Step 4: Handle result
+      // if (error) {
+      //   console.error('Payment failed:', error);
+      //   setStatus('FAILED');
+      // } else if (paymentIntent.status === 'succeeded') {
+      //   // Verify with backend
+      //   await apiClient.post(`/payments/${paymentIntentId}/verify`, {
+      //     payment_id: paymentIntentId,
+      //     provider_order_id: paymentIntent.id,
+      //     provider_payment_id: paymentIntent.id,
+      //     signature: '', // Stripe doesn't use signature, verified via webhook
+      //   });
+      //   
+      //   setStatus('PAID');
+      //   
+      //   setTimeout(() => {
+      //     if (payment.reference_type === 'APPOINTMENT') {
+      //       router.push(`/patient/confirmation/${payment.reference_id}`);
+      //     }
+      //   }, 1000);
+      // }
+      
+    } catch (err) {
+      console.error('Payment failed:', err);
+      setStatus('FAILED');
+    }
   };
 
-  return (
-    <div className="min-h-screen flex flex-col bg-white dark:bg-[#101922] text-slate-900 dark:text-white">
-      <header className="sticky top-0 z-50 bg-white dark:bg-[#1a2632] border-b border-slate-200 dark:border-slate-700 shadow-sm">
-        <div className="px-4 md:px-10 py-3 max-w-7xl mx-auto w-full flex items-center justify-between whitespace-nowrap">
-          <div className="flex items-center gap-3">
-            <div className="size-8 bg-green-600/10 rounded-full flex items-center justify-center text-green-600">
-              <MedicalServicesIcon fontSize="small" />
-            </div>
-            <h2 className="text-lg font-bold leading-tight tracking-tight">MedQueue</h2>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="size-10 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center justify-center relative">
-              <NotificationsIcon fontSize="medium" />
-              <span className="absolute top-2 right-2 size-2 bg-red-500 rounded-full border border-white dark:border-[#1a2632]"></span>
-            </button>
-            <button className="size-10 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center justify-center">
-              <AccountCircleIcon fontSize="medium" />
-            </button>
-          </div>
-        </div>
-      </header>
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 md:px-10 py-8 md:py-10">
-        <div className="flex flex-col gap-2 mb-8 md:mb-10">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">
-              Payment Gateway
-            </span>
+  if (error || !payment) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+        <div className="text-center">
+          <p className="text-red-500 mb-4">{error || 'Payment not found'}</p>
+          <button onClick={() => router.back()} className="text-primary hover:underline">
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 py-16">
+      <div className="max-w-2xl mx-auto px-4">
+        {/* Header */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 mb-6">
+            <LockIcon fontSize="small" />
+            <span className="text-[11px] font-bold uppercase tracking-widest">Secure Payment</span>
           </div>
-          <h1 className="text-3xl md:text-4xl font-black tracking-tight">
-            {intent?.purpose === "MEDICINE"
-              ? "Complete Medicine Order"
-              : intent?.purpose === "LAB"
-              ? "Complete Report Payment"
-              : "Complete Booking Payment"}
+          <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight mb-2">
+            Complete Your Payment
           </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-base max-w-2xl">
-            {intent?.purpose === "MEDICINE"
-              ? "Please review your medicine order details. Payment is required to confirm the order and initiate dispatch from the pharmacy."
-              : intent?.purpose === "LAB"
-              ? "You are paying for your medical test report. Once the payment is complete, the digital report will be instantly available for download."
-              : "You are paying a booking fee to secure your appointment. The remaining consultation fee will be collected at the clinic."}
+          <p className="text-slate-500 dark:text-slate-400 font-medium">
+            Secure checkout powered by Razorpay
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          <div className="lg:col-span-5 flex flex-col gap-6">
-            <PaymentSummary intent={intent} />
+        {/* Payment Card */}
+        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {/* Amount Section */}
+          <div className="px-10 py-10 bg-gradient-to-br from-green-50/50 to-emerald-50/30 dark:from-green-900/10 dark:to-emerald-900/5 border-b border-slate-200 dark:border-slate-700">
+            <div className="text-center">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest block mb-3">
+                Amount to Pay
+              </span>
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="text-sm font-bold text-slate-600 dark:text-slate-300">₹</span>
+                <span className="text-5xl font-black text-slate-900 dark:text-white tabular-nums">
+                  {Number(payment.amount).toFixed(2)}
+                </span>
+              </div>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-3 font-medium">
+                {payment.reference_type === 'APPOINTMENT' ? 'Doctor Consultation Booking Fee' : 'Payment'}
+              </p>
+            </div>
           </div>
 
-          <div className="lg:col-span-7 flex flex-col gap-6">
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800/40 rounded-lg p-3 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <LockIcon className="text-green-600" />
+          {/* Status Display */}
+          {status === 'PENDING' && (
+            <div className="p-8">
+              <div className="flex items-center gap-4 p-5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl">
+                <HourglassBottomIcon className="text-amber-600 text-3xl animate-pulse" />
                 <div>
-                  <p className="text-sm font-bold">Secure Transaction</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">Payments are encrypted and secured by Razorpay.</p>
+                  <p className="font-bold text-amber-900 dark:text-amber-200 text-lg">Processing Payment</p>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">Please wait while we confirm your payment...</p>
                 </div>
               </div>
-              <div className="flex gap-2 opacity-70 grayscale">
-                <img alt="Visa" className="h-5 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDl7yE8cGnHTsxq2_NRMNctGOmXqSWq3GP5JM26P17Sy-k54MbPWVydIVZ3u5xxSotHf2T8s5Q8rWuEv6SGcT3rQBaRv2C8Uw1PxtzjxtcyhMOpSa4fvHEED0cpaxjQv23kz2RXN_8as8vEANOFCflMYGaLfNgIGv4eKSJ6e1V5smmD9BsxB0-tH41qBKs6Wn-5l-qqBDH1fTuHcjCjeQBilo2zx1NRKcPA7gZhHomQ5fXUBZnB8gb0oKnvOFlIfpGXcm1OJDsW9GI" />
-                <img alt="Mastercard" className="h-5 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA9JF5VDv6FWJltj1M48e_8xJ22QNttDSYjowRY2zFupU-qrg-Ad42oXUN3DPthL0OG5RHi_aG9FaqXo_-Jfh5zVYVzss0cJIfr6BPuKLIzDqaRZ-4equF4Zq_s5jcKblWl7EJYdQyV6tpR6IKJjOUOgWCSTe7wQKfUC_KhMpKE-THaTIuVu6GpqbEckT2E_dlHIdPqiuFylHz9o0kfrmj7OcKzjpNGWhWvH7ncg7dXmQ5kqUe97OMQ7pYnFhfB8FtJISQ5-Es3KZQ" />
+            </div>
+          )}
+          
+          {status === 'PAID' && (
+            <div className="p-8">
+              <div className="flex items-center gap-4 p-5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl">
+                <CheckCircleIcon className="text-green-600 text-3xl" />
+                <div>
+                  <p className="font-bold text-green-900 dark:text-green-200 text-lg">Payment Successful!</p>
+                  <p className="text-sm text-green-700 dark:text-green-300">Redirecting to confirmation...</p>
+                </div>
               </div>
             </div>
+          )}
+          
+          {status === 'FAILED' && (
+            <div className="p-8">
+              <div className="flex items-center gap-4 p-5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl">
+                <ErrorIcon className="text-red-600 text-3xl" />
+                <div>
+                  <p className="font-bold text-red-900 dark:text-red-200 text-lg">Payment Failed</p>
+                  <p className="text-sm text-red-700 dark:text-red-300">Please try again or contact support</p>
+                </div>
+              </div>
+            </div>
+          )}
 
-            <PaymentMethods amount={amount} onPay={onPay} />
-            <PaymentStatus status={status} />
-          </div>
+          {/* Payment Button */}
+          {(status === 'CREATED' || status === 'FAILED') && (
+            <div className="p-10">
+              <button
+                onClick={handlePayment}
+                className="w-full h-16 bg-green-600 hover:bg-green-700 text-white font-black text-lg rounded-2xl shadow-xl shadow-green-600/30 flex items-center justify-center gap-3 transition-all transform hover:-translate-y-1 active:scale-[0.98]"
+              >
+                <PaymentIcon />
+                Pay ₹{Number(payment.amount).toFixed(2)}
+              </button>
+              
+              <p className="text-center text-xs text-slate-400 mt-6 font-medium">
+                By proceeding, you agree to our Terms & Conditions
+              </p>
+            </div>
+          )}
+
+          {/* Trust Badges */}
+          {status === 'CREATED' && (
+            <div className="px-10 pb-10">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700">
+                  <LockIcon className="text-green-600 text-2xl" />
+                  <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide text-center">
+                    SSL Encrypted
+                  </span>
+                </div>
+                <div className="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700">
+                  <VerifiedUserIcon className="text-green-600 text-2xl" />
+                  <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide text-center">
+                    PCI Compliant
+                  </span>
+                </div>
+                <div className="flex flex-col items-center gap-2 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700">
+                  <ShieldIcon className="text-green-600 text-2xl" />
+                  <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide text-center">
+                    100% Secure
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      </main>
+
+        {/* Footer */}
+        <div className="mt-10 text-center">
+          <div className="flex items-center justify-center gap-2 text-slate-400 mb-4">
+            <LockIcon fontSize="small" />
+            <span className="text-xs font-medium tracking-wide">256-bit SSL Encrypted Payment</span>
+          </div>
+          <p className="text-xs text-slate-400 font-medium">
+            Your payment information is processed securely. We do not store credit card details.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
+
+// Remove all tab components - Razorpay/Stripe will handle payment UI

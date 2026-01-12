@@ -46,7 +46,7 @@ export class PatientsService {
       created_at: user.created_at,
       full_name: patient?.full_name || 'Patient',
       gender: patient?.gender,
-      dob: patient?.dob,
+      dob: patient?.date_of_birth,
       emergency_contact_name: patient?.emergency_contact_name,
       emergency_contact_relation: patient?.emergency_contact_relation,
       emergency_contact_phone: patient?.emergency_contact_phone,
@@ -81,7 +81,7 @@ export class PatientsService {
     const patientData = {
       full_name: updateDto.full_name,
       gender: updateDto.gender,
-      dob: updateDto.dob ? new Date(updateDto.dob) : undefined,
+      date_of_birth: updateDto.dob ? new Date(updateDto.dob) : undefined,
       emergency_contact_name: updateDto.emergency_contact_name,
       emergency_contact_relation: updateDto.emergency_contact_relation,
       emergency_contact_phone: updateDto.emergency_contact_phone,
@@ -103,6 +103,7 @@ export class PatientsService {
       await this.prisma.patients.create({
         data: {
           auth_user_id: userId,
+          full_name: updateDto.full_name || 'Patient',
           ...cleanedData,
         },
       });

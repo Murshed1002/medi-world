@@ -7,6 +7,8 @@ import {
   Patch,
   Query,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PaymentService } from '../services/payment.service';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
@@ -17,6 +19,7 @@ import { RefundPaymentDto } from '../dto/refund-payment.dto';
 import { PaymentReferenceType, PaymentProvider } from '../types/payment.types';
 import { RazorpayGatewayService } from '../services/razorpay-gateway.service';
 import { StripeGatewayService } from '../services/stripe-gateway.service';
+import { AppointmentsService } from '../../appointments/appointments.service';
 
 @Controller('payments')
 export class PaymentController {
@@ -24,6 +27,8 @@ export class PaymentController {
     private readonly paymentService: PaymentService,
     private readonly razorpayGateway: RazorpayGatewayService,
     private readonly stripeGateway: StripeGatewayService,
+    @Inject(forwardRef(() => AppointmentsService))
+    private readonly appointmentsService: AppointmentsService,
   ) {}
 
   @Post()
@@ -120,11 +125,38 @@ export class PaymentController {
     throw new BadRequestException('Unsupported payment provider');
   }
 
-  @Post('verify')
-  async verifyPayment(@Body() verifyPaymentDto: VerifyPaymentDto) {
+  @Post(':id/verify')
+  async verifyPayment(@Body() verifyPaymentDto: VerifyPaymentDto, @Param('id') id: string) {
     const payment = await this.paymentService.getPaymentById(
-      verifyPaymentDto.payment_id,
+      id,
     );
+
+    // Check if we're in development mode (backend determines this, not frontend)
+    const isDevelopment = process.env.NODE_ENV === 'dev';
+
+    // In development mode, bypass actual verification but still process the payment
+    if (isDevelopment) {
+      await this.paymentService.updatePayment(id, {
+        status: 'SUCCESS' as any,
+        provider: payment.provider || PaymentProvider.RAZORPAY,
+        provider_payment_id: verifyPaymentDto.provider_payment_id || `dev_bypass_${Date.now()}`,
+      });
+
+      // Confirm the appointment if it's an appointment payment
+      if (payment.reference_type === 'APPOINTMENT') {
+        await this.appointmentsService.confirmAppointment(payment.reference_id);
+      }
+
+      return {
+        success: true,
+        message: 'Payment verified successfully (development mode)',
+      };
+    }
+
+    // Production: Validate required fields
+    if (!verifyPaymentDto.provider_order_id || !verifyPaymentDto.provider_payment_id || !verifyPaymentDto.signature) {
+      throw new BadRequestException('Missing required payment verification data');
+    }
 
     if (payment.provider === PaymentProvider.RAZORPAY) {
       const isValid = await this.razorpayGateway.verifyPaymentSignature(
@@ -142,6 +174,11 @@ export class PaymentController {
         provider_payment_id: verifyPaymentDto.provider_payment_id,
       });
 
+      // Confirm the appointment if it's an appointment payment
+      if (payment.reference_type === 'APPOINTMENT') {
+        await this.appointmentsService.confirmAppointment(payment.reference_id);
+      }
+
       return {
         success: true,
         message: 'Payment verified successfully',
@@ -150,6 +187,37 @@ export class PaymentController {
 
     throw new BadRequestException('Verification not supported for this provider');
   }
+
+  @Post(':id/create-order')
+  async createOrder(@Param('id') id: string) {
+    const payment = await this.paymentService.getPaymentById(id);
+
+    if (payment.status !== 'CREATED') {
+      throw new BadRequestException('Payment is not in CREATED status');
+    }
+
+    // Create Razorpay order
+    const order = await this.razorpayGateway.createOrder(
+      parseFloat(payment.amount),
+      payment.currency,
+      payment.id,
+    );
+
+    // Update payment with provider order ID
+    await this.paymentService.updatePayment(payment.id, {
+      provider: PaymentProvider.RAZORPAY,
+      provider_order_id: order.order_id,
+    });
+
+    return {
+      success: true,
+      provider_order_id: order.order_id,
+      amount: parseFloat(payment.amount),
+      currency: payment.currency,
+      key: process.env.RAZORPAY_KEY_ID,
+    };
+  }
+
 
   @Post(':id/refund')
   async refundPayment(

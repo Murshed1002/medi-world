@@ -6,6 +6,7 @@ import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 
 export default function DoctorBookingSidebar({
@@ -23,6 +24,7 @@ export default function DoctorBookingSidebar({
   onBook: () => void;
   onQueue: () => void;
 }) {
+  const router = useRouter();
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -307,7 +309,16 @@ export default function DoctorBookingSidebar({
           </div>
         </div>
         <button
-          onClick={onBook}
+          onClick={() => {
+            if (!selectedDate || !selectedSlot) return;
+            // Format date as YYYY-MM-DD
+            const year = selectedDate.getFullYear();
+            const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+            const day = String(selectedDate.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
+            
+            router.push(`/patient/book-appointment/${doctorId}?date=${dateStr}&slot=${encodeURIComponent(selectedSlot)}`);
+          }}
           disabled={!selectedDate || !selectedSlot}
           className="w-full mt-2 bg-primary hover:bg-green-700 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-green-500/20 transition-all duration-200 flex items-center justify-center gap-2 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >

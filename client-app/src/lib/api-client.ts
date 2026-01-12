@@ -34,9 +34,12 @@ apiClient.interceptors.response.use(
         // Retry the original request
         return apiClient(originalRequest);
       } catch (refreshError) {
-        // Redirect to login if refresh fails
+        // Redirect to login if refresh fails - but only if not already on login page
         if (typeof window !== 'undefined') {
-          window.location.href = '/patient/login';
+          const currentPath = window.location.pathname;
+          if (!currentPath.includes('/login') && !currentPath.includes('/verify-otp')) {
+            window.location.href = '/patient/login';
+          }
         }
         return Promise.reject(refreshError);
       }

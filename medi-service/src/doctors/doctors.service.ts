@@ -306,6 +306,7 @@ export class DoctorsService {
       reviewsCount: doctor.reviews_count || 0,
       fee: consultationFee ? parseFloat(consultationFee.toString()) : 0,
       bookingFee: bookingFee ? parseFloat(bookingFee.toString()) : 0,
+      clinicId: primaryClinic?.id || null, // Add clinic ID
       clinic: primaryClinic
         ? `${primaryClinic.name}, ${primaryClinic.address || ''}, ${primaryClinic.city || ''}`
         : 'Clinic information not available',
