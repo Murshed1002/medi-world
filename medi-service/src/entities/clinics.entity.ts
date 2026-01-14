@@ -14,6 +14,15 @@ export class Clinics {
   @Property({ type: 'text', nullable: true })
   address?: string;
 
+  @Property({ length: 100, nullable: true })
+  city?: string;
+
+  @Property({ length: 100, nullable: true })
+  latitude?: string;
+
+  @Property({ length: 100, nullable: true })
+  longitude?: string;
+
   @Property({ length: 15, nullable: true, fieldName: 'phone_number' })
   phoneNumber?: string;
 

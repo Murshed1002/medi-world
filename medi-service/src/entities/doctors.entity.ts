@@ -27,6 +27,9 @@ export class Doctors {
   @Property({ length: 50, nullable: true, fieldName: 'license_number' })
   licenseNumber?: string;
 
+  @Property({ type: 'integer', nullable: true, fieldName: 'experience_years' })
+  experienceYears?: number;
+
   @Property({ type: 'timestamptz', fieldName: 'created_at', onCreate: () => new Date() })
   createdAt?: Date;
 

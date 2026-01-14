@@ -6,7 +6,6 @@ import { GetDoctorsQueryDto } from './dto/get-doctors-query.dto';
 import { Doctors } from '../entities/doctors.entity';
 import { Appointments } from '../entities/appointments.entity';
 import { DoctorSlots } from '../entities/doctor-slots.entity';
-import { DoctorClinics } from '../entities/doctor-clinics.entity';
 
 @Injectable()
 export class DoctorsService {
@@ -20,8 +19,6 @@ export class DoctorsService {
     private readonly appointmentsRepo: EntityRepository<Appointments>,
     @InjectRepository(DoctorSlots)
     private readonly doctorSlotsRepo: EntityRepository<DoctorSlots>,
-    @InjectRepository(DoctorClinics)
-    private readonly doctorClinicsRepo: EntityRepository<DoctorClinics>,
     private readonly redis: RedisService,
   ) {}
 
@@ -257,17 +254,17 @@ export class DoctorsService {
         : 'Clinic information not available',
       clinicName: primaryClinic?.name || 'Clinic',
       clinicAddress: primaryClinic?.address || '',
-      clinicCity: null,
-      clinicLatitude: null,
-      clinicLongitude: null,
+      clinicCity:   primaryClinic.city || null,
+      clinicLatitude: primaryClinic?.latitude || null,
+      clinicLongitude: primaryClinic?.longitude || null,
       clinicHours,
       avatarUrl: this.getDefaultAvatar(doctor.gender),
-      city: null,
+      city: primaryClinic?.city || null,
       supportsVideo: false,
       isFemale: false,
       bio: 'Experienced medical professional dedicated to providing quality care.',
       qualifications: doctor.licenseNumber || 'MBBS, MD',
-      experienceYears: 0,
+      experienceYears: doctor.experienceYears || 0,
       totalPatients,
       email: doctor.email,
       phone: doctor.phoneNumber,
