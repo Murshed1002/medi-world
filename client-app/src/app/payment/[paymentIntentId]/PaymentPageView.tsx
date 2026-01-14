@@ -283,7 +283,7 @@ export default function PaymentPageView({ paymentIntentId }: { paymentIntentId: 
                 </span>
               </div>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-3 font-medium">
-                {payment.reference_type === 'APPOINTMENT' ? 'Doctor Consultation Booking Fee' : 'Payment'}
+                {payment.referenceType === 'APPOINTMENT' ? 'Doctor Consultation Booking Fee' : 'Payment'}
               </p>
             </div>
           </div>
