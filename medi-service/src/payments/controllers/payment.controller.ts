@@ -85,13 +85,13 @@ export class PaymentController {
 
       await this.paymentService.updatePayment(payment.id, {
         provider: PaymentProvider.RAZORPAY,
-        providerOrderId: order.order_id,
+        providerOrderId: order.orderId,
       });
 
       return {
         success: true,
         provider: PaymentProvider.RAZORPAY,
-        orderId: order.order_id,
+        orderId: order.orderId,
         amount: order.amount,
         currency: order.currency,
         key: process.env.RAZORPAY_KEY_ID,
@@ -111,14 +111,14 @@ export class PaymentController {
 
       await this.paymentService.updatePayment(payment.id, {
         provider: PaymentProvider.STRIPE,
-        providerPaymentId: paymentIntent.payment_intent_id,
+        providerPaymentId: paymentIntent.paymentIntentId,
       });
 
       return {
         success: true,
         provider: PaymentProvider.STRIPE,
-        clientSecret: paymentIntent.client_secret,
-        paymentIntentId: paymentIntent.payment_intent_id,
+        clientSecret: paymentIntent.clientSecret,
+        paymentIntentId: paymentIntent.paymentIntentId,
       };
     }
 
@@ -206,12 +206,12 @@ export class PaymentController {
     // Update payment with provider order ID
     await this.paymentService.updatePayment(payment.id, {
       provider: PaymentProvider.RAZORPAY,
-      providerOrderId: order.order_id,
+      providerOrderId: order.orderId,
     });
 
     return {
       success: true,
-      providerOrderId: order.order_id,
+      providerOrderId: order.orderId,
       amount: Number(payment.amount),
       currency: payment.currency,
       key: process.env.RAZORPAY_KEY_ID,

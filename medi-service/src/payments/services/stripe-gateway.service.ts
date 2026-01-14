@@ -38,8 +38,8 @@ export class StripeGatewayService {
       });
 
       return {
-        payment_intent_id: paymentIntent.id,
-        client_secret: paymentIntent.client_secret,
+        paymentIntentId: paymentIntent.id,
+        clientSecret: paymentIntent.client_secret,
         amount: paymentIntent.amount,
         currency: paymentIntent.currency,
         status: paymentIntent.status,
@@ -114,8 +114,8 @@ export class StripeGatewayService {
       const refund = await this.stripe.refunds.create(refundData);
 
       return {
-        refund_id: refund.id,
-        payment_intent_id: refund.payment_intent as string,
+        refundId: refund.id,
+        paymentIntentId: refund.payment_intent as string,
         amount: refund.amount / 100,
         currency: refund.currency,
         status: refund.status,

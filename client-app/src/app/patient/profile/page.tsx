@@ -14,27 +14,27 @@ import SaveIcon from "@mui/icons-material/Save";
 
 interface PatientProfile {
   id: string;
-  phone_number: string;
+  phoneNumber: string;
   email?: string;
   role: string;
-  is_active: boolean;
-  created_at: string;
-  full_name: string;
+  isActive: boolean;
+  createdAt: string;
+  fullName: string;
   gender?: string;
   dob?: string;
-  emergency_contact_name?: string;
-  emergency_contact_relation?: string;
-  emergency_contact_phone?: string;
+  emergencyContactName?: string;
+  emergencyContactRelation?: string;
+  emergencyContactPhone?: string;
 }
 
 interface EditFormData {
-  full_name: string;
+  fullName: string;
   email: string;
   gender: string;
   dob: string;
-  emergency_contact_name: string;
-  emergency_contact_relation: string;
-  emergency_contact_phone: string;
+  emergencyContactName: string;
+  emergencyContactRelation: string;
+  emergencyContactPhone: string;
 }
 
 export default function ProfilePage() {
@@ -45,13 +45,13 @@ export default function ProfilePage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<EditFormData>({
-    full_name: "",
+    fullName: "",
     email: "",
     gender: "",
     dob: "",
-    emergency_contact_name: "",
-    emergency_contact_relation: "",
-    emergency_contact_phone: "",
+    emergencyContactName: "",
+    emergencyContactRelation: "",
+    emergencyContactPhone: "",
   });
 
   useEffect(() => {
@@ -67,13 +67,13 @@ export default function ProfilePage() {
       setProfile(response.data);
       // Initialize form data
       setFormData({
-        full_name: response.data.full_name || "",
+        fullName: response.data.fullName || "",
         email: response.data.email || "",
         gender: response.data.gender || "",
         dob: response.data.dob ? response.data.dob.split('T')[0] : "",
-        emergency_contact_name: response.data.emergency_contact_name || "",
-        emergency_contact_relation: response.data.emergency_contact_relation || "",
-        emergency_contact_phone: response.data.emergency_contact_phone || "",
+        emergencyContactName: response.data.emergencyContactName || "",
+        emergencyContactRelation: response.data.emergencyContactRelation || "",
+        emergencyContactPhone: response.data.emergency_contact_phone || "",
       });
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to load profile");
@@ -90,13 +90,13 @@ export default function ProfilePage() {
     // Reset form to current profile data
     if (profile) {
       setFormData({
-        full_name: profile.full_name || "",
+        fullName: profile.fullName || "",
         email: profile.email || "",
         gender: profile.gender || "",
         dob: profile.dob ? profile.dob.split('T')[0] : "",
-        emergency_contact_name: profile.emergency_contact_name || "",
-        emergency_contact_relation: profile.emergency_contact_relation || "",
-        emergency_contact_phone: profile.emergency_contact_phone || "",
+        emergencyContactName: profile.emergencyContactName || "",
+        emergencyContactRelation: profile.emergencyContactRelation || "",
+        emergencyContactPhone: profile.emergencyContactPhone || "",
       });
     }
     setIsEditMode(false);
@@ -108,13 +108,13 @@ export default function ProfilePage() {
       setError("");
       
       const updateData: any = {};
-      if (formData.full_name) updateData.full_name = formData.full_name;
+      if (formData.fullName) updateData.fullName = formData.fullName;
       if (formData.email) updateData.email = formData.email;
       if (formData.gender) updateData.gender = formData.gender;
       if (formData.dob) updateData.dob = formData.dob;
-      if (formData.emergency_contact_name) updateData.emergency_contact_name = formData.emergency_contact_name;
-      if (formData.emergency_contact_relation) updateData.emergency_contact_relation = formData.emergency_contact_relation;
-      if (formData.emergency_contact_phone) updateData.emergency_contact_phone = formData.emergency_contact_phone;
+      if (formData.emergencyContactName) updateData.emergencyContactName = formData.emergencyContactName;
+      if (formData.emergencyContactRelation) updateData.emergencyContactRelation = formData.emergencyContactRelation;
+      if (formData.emergencyContactPhone) updateData.emergencyContactPhone = formData.emergencyContactPhone;
 
       const response = await apiClient.put("/patients/profile", updateData);
       setProfile(response.data);
@@ -180,7 +180,7 @@ export default function ProfilePage() {
               <div className="w-28 h-28 rounded-3xl bg-slate-100 dark:bg-slate-700 border-4 border-white dark:border-slate-800 shadow-soft overflow-hidden">
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/10 text-primary">
                   <span className="text-5xl font-bold">
-                    {profile.full_name.charAt(0).toUpperCase()}
+                    {profile.fullName.charAt(0).toUpperCase()}
                   </span>
                 </div>
               </div>
@@ -190,7 +190,7 @@ export default function ProfilePage() {
             </div>
             <div className="text-center md:text-left">
               <h2 className="text-3xl font-bold text-slate-900 dark:text-white">
-                {profile.full_name}
+                {profile.fullName}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Patient Account</p>
             </div>
@@ -252,14 +252,14 @@ export default function ProfilePage() {
                   {isEditMode ? (
                     <input
                       type="text"
-                      value={formData.full_name}
-                      onChange={(e) => handleInputChange("full_name", e.target.value)}
+                      value={formData.fullName}
+                      onChange={(e) => handleInputChange("fullName", e.target.value)}
                       className="w-full text-base font-semibold text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2"
                       placeholder="Enter full name"
                     />
                   ) : (
                     <p className="text-base font-semibold text-slate-900 dark:text-white">
-                      {profile.full_name}
+                      {profile.fullName}
                     </p>
                   )}
                 </div>
@@ -306,7 +306,7 @@ export default function ProfilePage() {
                     Mobile Number
                   </p>
                   <p className="text-base font-semibold text-slate-900 dark:text-white">
-                    {profile.phone_number}
+                    {profile.phoneNumber}
                   </p>
                 </div>
                 <div className="space-y-1 md:col-span-2">
@@ -350,14 +350,14 @@ export default function ProfilePage() {
                   {isEditMode ? (
                     <input
                       type="text"
-                      value={formData.emergency_contact_name}
-                      onChange={(e) => handleInputChange("emergency_contact_name", e.target.value)}
+                      value={formData.emergencyContactName}
+                      onChange={(e) => handleInputChange("emergencyContactName", e.target.value)}
                       className="w-full text-base font-semibold text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2"
-                      placeholder="Enter guardian name"
+                      placeholder="Enter guardian's name"
                     />
                   ) : (
                     <p className="text-base font-semibold text-slate-900 dark:text-white">
-                      {profile.emergency_contact_name || "Not specified"}
+                      {profile.emergencyContactName || "Not specified"}
                     </p>
                   )}
                 </div>
@@ -368,14 +368,14 @@ export default function ProfilePage() {
                   {isEditMode ? (
                     <input
                       type="text"
-                      value={formData.emergency_contact_relation}
-                      onChange={(e) => handleInputChange("emergency_contact_relation", e.target.value)}
+                      value={formData.emergencyContactRelation}
+                      onChange={(e) => handleInputChange("emergencyContactRelation", e.target.value)}
                       className="w-full text-base font-semibold text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2"
-                      placeholder="e.g., Spouse, Parent"
+                      placeholder="E.g., Spouse, Parent, Sibling"
                     />
                   ) : (
                     <p className="text-base font-semibold text-slate-900 dark:text-white">
-                      {profile.emergency_contact_relation || "Not specified"}
+                      {profile.emergencyContactRelation || "Not specified"}
                     </p>
                   )}
                 </div>
@@ -386,14 +386,14 @@ export default function ProfilePage() {
                   {isEditMode ? (
                     <input
                       type="tel"
-                      value={formData.emergency_contact_phone}
-                      onChange={(e) => handleInputChange("emergency_contact_phone", e.target.value)}
+                      value={formData.emergencyContactPhone}
+                      onChange={(e) => handleInputChange("emergencyContactPhone", e.target.value)}
                       className="w-full text-base font-semibold text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2"
-                      placeholder="Enter phone number"
+                      placeholder="Enter contact number"
                     />
                   ) : (
                     <p className="text-base font-semibold text-slate-900 dark:text-white">
-                      {profile.emergency_contact_phone || "Not specified"}
+                      {profile.emergencyContactPhone || "Not specified"}
                     </p>
                   )}
                 </div>
@@ -418,7 +418,7 @@ export default function ProfilePage() {
                     Member Since
                   </p>
                   <p className="text-base font-semibold text-slate-900 dark:text-white">
-                    {getMemberSinceDate(profile.created_at)}
+                    {getMemberSinceDate(profile.createdAt)}
                   </p>
                 </div>
                 <div className="w-px h-8 bg-slate-100 dark:bg-slate-700 mx-4"></div>
@@ -428,7 +428,7 @@ export default function ProfilePage() {
                   </p>
                   <p className="flex items-center gap-1.5 text-base font-semibold text-green-600 dark:text-green-400">
                     <CheckCircleIcon className="text-[18px]" />
-                    {profile.is_active ? "Identity Verified" : "Pending Verification"}
+                    {profile.isActive ? "Identity Verified" : "Pending Verification"}
                   </p>
                 </div>
               </div>

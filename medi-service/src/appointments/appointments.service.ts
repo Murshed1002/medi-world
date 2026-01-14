@@ -124,7 +124,8 @@ export class AppointmentsService {
         status: AppointmentStatus.PAYMENT_PENDING,
         bookingFeeAmount: bookingFee,
       });
-      await em.persistAndFlush(appointment);
+      em.persist(appointment);
+      await em.flush();
 
       // 3️⃣ Create or get clinic queue for this date
       let clinicQueue = await em.findOne(ClinicQueues, {
@@ -148,7 +149,8 @@ export class AppointmentsService {
           createdAt: new Date(),
           updatedAt: new Date(),
         });
-        await em.persistAndFlush(clinicQueue);
+        em.persist(clinicQueue);
+        await em.flush();
       }
 
       // 4️⃣ Assign token number
@@ -165,7 +167,8 @@ export class AppointmentsService {
         tokenNumber,
         status: 'WAITING',
       });
-      await em.persistAndFlush(queueEntry);
+      em.persist(queueEntry);
+      await em.flush();
 
       // 5️⃣ Create payment intent
       const payment = em.create(Payments, {
@@ -177,7 +180,8 @@ export class AppointmentsService {
         paymentType: 'BOOKING_FEE',
         status: 'CREATED',
       });
-      await em.persistAndFlush(payment);
+      em.persist(payment);
+      await em.flush();
 
       return {
         appointmentId: appointment.id,
@@ -249,9 +253,14 @@ export class AppointmentsService {
     };
   }
 
-  async getAllAppointments() {
+  async getAllAppointments(authUserId: string) {
+    const patient = await this.patientsRepo.findOne({ authUser: authUserId });
+    if (!patient) {
+      throw new BadRequestException('Patient profile not found');
+    }
     return this.appointmentsRepo.findAll({
       populate: ['patient', 'doctor', 'clinic'],
+      where: { patient },
     });
   }
 }

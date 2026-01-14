@@ -19,9 +19,10 @@ export class AppointmentsController {
   }
 
   @Get('getAll')
-  async getAllAppointments() {
-    // Implementation for fetching all appointments
-    return this.service.getAllAppointments();
+  @UseGuards(JwtAuthGuard)
+  async getAllAppointments(@Req() req) {
+    const authUserId = req.user.userId;
+    return this.service.getAllAppointments(authUserId);
   }
 
   @Get(':id')

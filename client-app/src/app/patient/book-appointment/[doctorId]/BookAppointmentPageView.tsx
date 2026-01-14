@@ -20,7 +20,7 @@ interface Doctor {
   fee: number;
   bookingFee: number;
   avatarUrl?: string;
-  clinic_id: string;
+  clinicId: string;
 }
 
 export default function BookAppointmentPageView({ doctorId }: { doctorId: string }) {
@@ -52,7 +52,7 @@ export default function BookAppointmentPageView({ doctorId }: { doctorId: string
           fee: data.fee,
           bookingFee: data.bookingFee || data.fee * 0.1,
           avatarUrl: data.avatarUrl,
-          clinic_id: data.clinicId, // Use clinicId from backend
+          clinicId: data.clinicId,
         });
       } catch (err) {
         setError('Failed to load doctor details');
@@ -94,7 +94,7 @@ export default function BookAppointmentPageView({ doctorId }: { doctorId: string
 
       const payload = {
         doctorId: doctor.id,
-        clinicId: doctor.clinic_id,
+        clinicId: doctor.clinicId,
         appointmentDate: selectedDate,
         slotStartTime: start,
         slotEndTime: end,

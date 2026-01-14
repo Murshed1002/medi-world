@@ -40,7 +40,7 @@ export default function AppHeader() {
     return null;
   }
 
-  const userName = profileData?.full_name || authUser?.phone || "Patient";
+  const userName = profileData?.fullName || authUser?.phone || "My Profile";
   const userPhone = authUser?.phone || "";
   const userInitial = userName.charAt(0).toUpperCase();
 

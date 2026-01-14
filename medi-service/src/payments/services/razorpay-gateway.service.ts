@@ -34,7 +34,7 @@ export class RazorpayGatewayService {
       });
 
       return {
-        order_id: order.id,
+        orderId: order.id,
         amount: order.amount,
         currency: order.currency,
         receipt: order.receipt,
@@ -124,12 +124,12 @@ export class RazorpayGatewayService {
       const refund = await this.razorpay.payments.refund(paymentId, refundData);
 
       return {
-        refund_id: refund.id,
-        payment_id: refund.payment_id,
+        refundId: refund.id,
+        paymentId: refund.payment_id,
         amount: refund.amount ? refund.amount / 100 : 0,
         currency: refund.currency,
         status: refund.status,
-        created_at: refund.created_at,
+        createdAt: refund.created_at,
       };
     } catch (error) {
       console.error('Razorpay refund failed:', error);
