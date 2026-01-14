@@ -4,7 +4,7 @@ import { PaymentProvider } from '../types/payment.types';
 export class InitiatePaymentDto {
   @IsUUID()
   @IsNotEmpty()
-  payment_id: string;
+  paymentId: string;
 
   @IsEnum(PaymentProvider)
   @IsNotEmpty()

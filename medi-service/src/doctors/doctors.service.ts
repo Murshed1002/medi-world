@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
+import { InjectRepository } from '@mikro-orm/nestjs';
+import { EntityRepository } from '@mikro-orm/postgresql';
 import { RedisService } from '../common/redis/redis.service';
 import { GetDoctorsQueryDto } from './dto/get-doctors-query.dto';
+import { Doctors } from '../entities/doctors.entity';
+import { Appointments } from '../entities/appointments.entity';
+import { DoctorSlots } from '../entities/doctor-slots.entity';
+import { DoctorClinics } from '../entities/doctor-clinics.entity';
 
 @Injectable()
 export class DoctorsService {
@@ -9,7 +14,14 @@ export class DoctorsService {
   private readonly DOCTORS_CACHE_TTL = 300; // 5 minutes
 
   constructor(
-    private readonly prisma: PrismaService,
+    @InjectRepository(Doctors)
+    private readonly doctorsRepo: EntityRepository<Doctors>,
+    @InjectRepository(Appointments)
+    private readonly appointmentsRepo: EntityRepository<Appointments>,
+    @InjectRepository(DoctorSlots)
+    private readonly doctorSlotsRepo: EntityRepository<DoctorSlots>,
+    @InjectRepository(DoctorClinics)
+    private readonly doctorClinicsRepo: EntityRepository<DoctorClinics>,
     private readonly redis: RedisService,
   ) {}
 
@@ -26,15 +38,13 @@ export class DoctorsService {
 
     this.logger.log('Doctors list cache miss, fetching from DB');
 
-    // Build where clause
-    const where: any = {
-      is_verified: true, // Only show verified doctors
-    };
+    // Build where clause for MikroORM
+    const where: any = {};
 
     if (queryDto.search) {
-      where.OR = [
-        { full_name: { contains: queryDto.search, mode: 'insensitive' } },
-        { specialization: { contains: queryDto.search, mode: 'insensitive' } },
+      where.$or = [
+        { name: { $ilike: `%${queryDto.search}%` } },
+        { specialization: { $ilike: `%${queryDto.search}%` } },
       ];
     }
 
@@ -42,38 +52,18 @@ export class DoctorsService {
       where.specialization = queryDto.specialization;
     }
 
-    if (queryDto.isFemale !== undefined) {
-      where.gender = queryDto.isFemale ? 'FEMALE' : 'MALE';
-    }
-
-    if (queryDto.supportsVideo !== undefined) {
-      where.supports_video = queryDto.supportsVideo;
-    }
-
     // Fetch doctors with their clinics
-    const doctors = await this.prisma.doctors.findMany({
+    const doctors = await this.doctorsRepo.findAll({
       where,
-      include: {
-        auth_users: {
-          select: {
-            phone_number: true,
-            email: true,
-          },
-        },
-        doctor_clinics: {
-          include: {
-            clinics: true,
-          },
-        },
-      },
+      populate: ['doctorClinics', 'doctorClinics.clinic'],
     });
 
     // Transform data to match frontend expectations
     const transformedDoctors = await Promise.all(
       doctors.map(async (doctor) => {
-        const primaryClinic = doctor.doctor_clinics[0]?.clinics;
+        const primaryClinic = doctor.doctorClinics[0]?.clinic;
         const consultationFee =
-          doctor.doctor_clinics[0]?.consultation_fee || 0;
+          doctor.doctorClinics[0]?.consultationFee || 0;
 
         // Check if doctor has appointments today
         const today = new Date();
@@ -81,16 +71,14 @@ export class DoctorsService {
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
 
-        const hasAppointmentsToday = await this.prisma.appointments.count({
-          where: {
-            doctor_id: doctor.id,
-            appointment_date: {
-              gte: today,
-              lt: tomorrow,
-            },
-            status: {
-              in: ['CONFIRMED', 'PAYMENT_PENDING'],
-            },
+        const hasAppointmentsToday = await this.appointmentsRepo.count({
+          doctor: doctor,
+          appointmentDate: {
+            $gte: today,
+            $lt: tomorrow,
+          },
+          status: {
+            $in: ['CONFIRMED', 'PAYMENT_PENDING'],
           },
         });
 
@@ -99,21 +87,21 @@ export class DoctorsService {
 
         return {
           id: doctor.id,
-          name: doctor.full_name,
+          name: doctor.name,
           specialization: doctor.specialization || 'General Physician',
-          rating: doctor.rating ? parseFloat(doctor.rating.toString()) : 0,
-          reviews: doctor.reviews_count || 0,
+          rating: 0,
+          reviews: 0,
           fee: consultationFee ? parseFloat(consultationFee.toString()) : 0,
           availableToday: hasAppointmentsToday > 0,
           nextSlot,
           clinic: primaryClinic
-            ? `${primaryClinic.name}, ${primaryClinic.address || ''}, ${primaryClinic.city || ''}`
+            ? `${primaryClinic.name}, ${primaryClinic.address || ''}`
             : 'Clinic information not available',
-          avatarUrl: doctor.profile_image_url || this.getDefaultAvatar(doctor.gender),
+          avatarUrl: this.getDefaultAvatar(doctor.gender),
           online: hasAppointmentsToday > 0,
-          city: primaryClinic?.city || null,
-          supportsVideo: doctor.supports_video || false,
-          isFemale: doctor.gender === 'FEMALE',
+          city: null,
+          supportsVideo: false,
+          isFemale: false,
         };
       }),
     );
@@ -157,55 +145,23 @@ export class DoctorsService {
   }
 
   async getDoctorById(id: string) {
-    const doctor = await this.prisma.doctors.findUnique({
-      where: { id },
-      include: {
-        auth_users: {
-          select: {
-            phone_number: true,
-            email: true,
-          },
-        },
-        doctor_clinics: {
-          include: {
-            clinics: true,
-          },
-        },
-        doctor_reviews: {
-          take: 10,
-          orderBy: {
-            created_at: 'desc',
-          },
-          include: {
-            patients: {
-              select: {
-                full_name: true,
-              },
-            },
-          },
-        },
-        doctor_slots: {
-          orderBy: {
-            day_of_week: 'asc',
-          },
-        },
-      },
-    });
+    const doctor = await this.doctorsRepo.findOne(
+      { id },
+      { populate: ['doctorClinics', 'doctorClinics.clinic'] }
+    );
 
     if (!doctor) {
       return null;
     }
 
-    const primaryClinic = doctor.doctor_clinics[0]?.clinics;
-    const consultationFee = doctor.doctor_clinics[0]?.consultation_fee || 0;
-    const bookingFee = doctor.doctor_clinics[0]?.booking_fee || 0;
+    const primaryClinic = doctor.doctorClinics[0]?.clinic;
+    const consultationFee = doctor.doctorClinics[0]?.consultationFee || 0;
+    const bookingFee = doctor.doctorClinics[0]?.bookingFee || 0;
 
     // Get total patients treated (count of completed appointments)
-    const totalPatients = await this.prisma.appointments.count({
-      where: {
-        doctor_id: id,
-        status: 'COMPLETED',
-      },
+    const totalPatients = await this.appointmentsRepo.count({
+      doctor: doctor,
+      status: 'COMPLETED',
     });
 
     // Get today's queue information
@@ -214,28 +170,26 @@ export class DoctorsService {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const todayAppointments = await this.prisma.appointments.findMany({
-      where: {
-        doctor_id: id,
-        appointment_date: {
-          gte: today,
-          lt: tomorrow,
+    const todayAppointments = await this.appointmentsRepo.find(
+      {
+        doctor: doctor,
+        appointmentDate: {
+          $gte: today,
+          $lt: tomorrow,
         },
         status: {
-          in: ['CONFIRMED', 'PAYMENT_PENDING', 'WAITING'],
+          $in: ['CONFIRMED', 'PAYMENT_PENDING', 'WAITING'],
         },
       },
-      orderBy: {
-        slot_start_time: 'asc',
-      },
-    });
+      { orderBy: { slotStartTime: 'asc' } }
+    );
 
     // Calculate queue status
     const currentTime = new Date();
     const waitingInQueue = todayAppointments.filter((apt) => {
-      const aptTime = new Date(apt.appointment_date);
+      const aptTime = new Date(apt.appointmentDate);
       // Convert TIME to string format (HH:MM:SS or HH:MM)
-      const timeStr = apt.slot_start_time.toString();
+      const timeStr = apt.slotStartTime.toString();
       const [hours, minutes] = timeStr.split(':');
       aptTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
       return aptTime <= currentTime && apt.status !== 'COMPLETED';
@@ -247,24 +201,15 @@ export class DoctorsService {
     // Get next available slot
     const nextAvailableSlot = await this.getNextAvailableSlot(id);
 
-    // Transform reviews
-    const reviews = doctor.doctor_reviews.map((review) => ({
-      id: review.id,
-      patientName: review.is_anonymous
-        ? 'Anonymous'
-        : review.patients?.full_name || 'Anonymous',
-      rating: parseFloat(review.rating.toString()),
-      comment: review.review_text || '',
-      date: review.created_at,
-      isVerified: review.is_verified || false,
-      helpfulCount: review.helpful_count || 0,
-    }));
+    // Get doctor slots for clinic hours
+    const doctorSlots = await this.doctorSlotsRepo.find(
+      { doctor: id },
+      { orderBy: { dayOfWeek: 'asc' } }
+    );
 
     // Transform doctor slots to clinic hours format
     const dayOrder = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
-    const clinicHours = doctor.doctor_slots
-      .filter(slot => slot.clinic_id === primaryClinic?.id)
-      .map(slot => {
+    const clinicHours = doctorSlots.map(slot => {
         // Convert 24h to 12h format - handles both Date objects and strings
         const formatTime = (time: any) => {
           let hours: number;
@@ -288,8 +233,8 @@ export class DoctorsService {
         };
 
         return {
-          day: slot.day_of_week.charAt(0) + slot.day_of_week.slice(1).toLowerCase(),
-          value: `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`,
+          day: slot.dayOfWeek.charAt(0) + slot.dayOfWeek.slice(1).toLowerCase(),
+          value: `${formatTime(slot.startTime)} - ${formatTime(slot.endTime)}`,
         };
       })
       .sort((a, b) => {
@@ -300,38 +245,38 @@ export class DoctorsService {
 
     return {
       id: doctor.id,
-      name: doctor.full_name,
+      name: doctor.name,
       specialization: doctor.specialization || 'General Physician',
-      rating: doctor.rating ? parseFloat(doctor.rating.toString()) : 0,
-      reviewsCount: doctor.reviews_count || 0,
+      rating: 0,
+      reviewsCount: 0,
       fee: consultationFee ? parseFloat(consultationFee.toString()) : 0,
       bookingFee: bookingFee ? parseFloat(bookingFee.toString()) : 0,
-      clinicId: primaryClinic?.id || null, // Add clinic ID
+      clinicId: primaryClinic?.id || null,
       clinic: primaryClinic
-        ? `${primaryClinic.name}, ${primaryClinic.address || ''}, ${primaryClinic.city || ''}`
+        ? `${primaryClinic.name}, ${primaryClinic.address || ''}`
         : 'Clinic information not available',
       clinicName: primaryClinic?.name || 'Clinic',
       clinicAddress: primaryClinic?.address || '',
-      clinicCity: primaryClinic?.city || '',
-      clinicLatitude: primaryClinic?.latitude ? parseFloat(primaryClinic.latitude.toString()) : null,
-      clinicLongitude: primaryClinic?.longitude ? parseFloat(primaryClinic.longitude.toString()) : null,
+      clinicCity: null,
+      clinicLatitude: null,
+      clinicLongitude: null,
       clinicHours,
-      avatarUrl: doctor.profile_image_url || this.getDefaultAvatar(doctor.gender),
-      city: primaryClinic?.city || null,
-      supportsVideo: doctor.supports_video || false,
-      isFemale: doctor.gender === 'FEMALE',
-      bio: doctor.bio || 'Experienced medical professional dedicated to providing quality care.',
-      qualifications: doctor.registration_number || 'MBBS, MD',
-      experienceYears: doctor.experience_years || 0,
+      avatarUrl: this.getDefaultAvatar(doctor.gender),
+      city: null,
+      supportsVideo: false,
+      isFemale: false,
+      bio: 'Experienced medical professional dedicated to providing quality care.',
+      qualifications: doctor.licenseNumber || 'MBBS, MD',
+      experienceYears: 0,
       totalPatients,
-      email: doctor.auth_users?.email,
-      phone: doctor.auth_users?.phone_number,
+      email: doctor.email,
+      phone: doctor.phoneNumber,
       nextAvailableSlot,
       queueStatus: {
         waiting: waitingInQueue,
         estimatedWaitTime,
       },
-      reviews,
+      reviews: [],
     };
   }
 
@@ -344,14 +289,18 @@ export class DoctorsService {
     const dayOfWeek = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'][selectedDate.getDay()];
     
     // Get doctor's schedule for the selected day
-    const doctorSlot = await this.prisma.doctor_slots.findFirst({
-      where: {
-        doctor_id: doctorId,
-        day_of_week: dayOfWeek,
-      },
+    const doctorSlot = await this.doctorSlotsRepo.findOne({
+      doctor: doctorId,
+      dayOfWeek,
     });
 
     if (!doctorSlot) {
+      return [];
+    }
+
+    // Check if time values are null
+    if (!doctorSlot.startTime || !doctorSlot.endTime) {
+      this.logger.warn(`Doctor slot has null time values for doctorId=${doctorId}, dayOfWeek=${dayOfWeek}`);
       return [];
     }
 
@@ -359,36 +308,41 @@ export class DoctorsService {
     const nextDay = new Date(selectedDate);
     nextDay.setDate(nextDay.getDate() + 1);
     
-    const existingAppointments = await this.prisma.appointments.findMany({
-      where: {
-        doctor_id: doctorId,
-        appointment_date: {
-          gte: selectedDate,
-          lt: nextDay,
-        },
-        status: {
-          in: ['CONFIRMED', 'PAYMENT_PENDING', 'WAITING'],
-        },
+    const existingAppointments = await this.appointmentsRepo.find({
+      doctor: doctorId,
+      appointmentDate: {
+        $gte: selectedDate,
+        $lt: nextDay,
+      },
+      status: {
+        $in: ['CONFIRMED', 'PAYMENT_PENDING', 'WAITING'],
       },
     });
 
-    // Generate all possible slots based on start_time, end_time, and slot_duration
+    // Generate all possible slots based on startTime, endTime, and slotDuration
     const slots: string[] = [];
-    const duration = doctorSlot.slot_duration_minutes;
+    const duration = doctorSlot.slotDurationMinutes;
 
-    // Handle TIME type which comes as Date object from Prisma
-    const getTimeComponents = (timeValue: any): [number, number] => {
-      if (timeValue instanceof Date) {
-        // Use UTC methods to avoid timezone conversion issues
-        return [timeValue.getUTCHours(), timeValue.getUTCMinutes()];
+    // Handle TIME type which comes as string from MikroORM
+    const getTimeComponents = (timeValue: string): [number, number] => {
+      const parts = timeValue.split(':');
+      if (parts.length < 2) {
+        this.logger.error(`Invalid time format: ${timeValue}`);
+        return [0, 0];
       }
-      const timeStr = timeValue.toString();
-      const [hours, minutes] = timeStr.split(':').map(Number);
+      const hours = parseInt(parts[0], 10);
+      const minutes = parseInt(parts[1], 10);
+      
+      if (isNaN(hours) || isNaN(minutes)) {
+        this.logger.error(`Could not parse time: ${timeValue}`);
+        return [0, 0];
+      }
+      
       return [hours, minutes];
     };
 
-    const [startHours, startMinutes] = getTimeComponents(doctorSlot.start_time);
-    const [endHours, endMinutes] = getTimeComponents(doctorSlot.end_time);
+    const [startHours, startMinutes] = getTimeComponents(doctorSlot.startTime);
+    const [endHours, endMinutes] = getTimeComponents(doctorSlot.endTime);
 
     let currentMinutes = startHours * 60 + startMinutes;
     const endTotalMinutes = endHours * 60 + endMinutes;
@@ -405,7 +359,7 @@ export class DoctorsService {
 
       // Check if this slot is already booked
       const isBooked = existingAppointments.some(apt => {
-        const aptTime = apt.slot_start_time.toString();
+        const aptTime = apt.slotStartTime.toString();
         const [aptHours, aptMinutes] = aptTime.split(':').map(Number);
         return aptHours === hours && aptMinutes === minutes;
       });
@@ -422,26 +376,24 @@ export class DoctorsService {
 
   private async getNextAvailableSlot(doctorId: string): Promise<string | null> {
     // Simplified logic - get next appointment
-    const nextAppointment = await this.prisma.appointments.findFirst({
-      where: {
-        doctor_id: doctorId,
-        appointment_date: {
-          gte: new Date(),
+    const nextAppointment = await this.appointmentsRepo.findOne(
+      {
+        doctor: doctorId,
+        appointmentDate: {
+          $gte: new Date(),
         },
         status: {
-          in: ['CONFIRMED', 'PAYMENT_PENDING'],
+          $in: ['CONFIRMED', 'PAYMENT_PENDING'],
         },
       },
-      orderBy: {
-        appointment_date: 'asc',
-      },
-    });
+      { orderBy: { appointmentDate: 'asc' } }
+    );
 
     if (nextAppointment) {
-      const date = new Date(nextAppointment.appointment_date);
+      const date = new Date(nextAppointment.appointmentDate);
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const dayName = days[date.getDay()];
-      const time = nextAppointment.slot_start_time;
+      const time = nextAppointment.slotStartTime;
       return `${dayName}, ${time}`;
     }
 

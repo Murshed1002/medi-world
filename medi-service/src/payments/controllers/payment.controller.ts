@@ -73,25 +73,25 @@ export class PaymentController {
   @Post('initiate')
   async initiatePayment(@Body() initiatePaymentDto: InitiatePaymentDto) {
     const payment = await this.paymentService.getPaymentById(
-      initiatePaymentDto.payment_id,
+      initiatePaymentDto.paymentId,
     );
 
     if (initiatePaymentDto.provider === PaymentProvider.RAZORPAY) {
       const order = await this.razorpayGateway.createOrder(
-        parseFloat(payment.amount),
+        Number(payment.amount),
         payment.currency,
         payment.id,
       );
 
       await this.paymentService.updatePayment(payment.id, {
         provider: PaymentProvider.RAZORPAY,
-        provider_order_id: order.order_id,
+        providerOrderId: order.order_id,
       });
 
       return {
         success: true,
         provider: PaymentProvider.RAZORPAY,
-        order_id: order.order_id,
+        orderId: order.order_id,
         amount: order.amount,
         currency: order.currency,
         key: process.env.RAZORPAY_KEY_ID,
@@ -100,25 +100,25 @@ export class PaymentController {
 
     if (initiatePaymentDto.provider === PaymentProvider.STRIPE) {
       const paymentIntent = await this.stripeGateway.createPaymentIntent(
-        parseFloat(payment.amount),
+        Number(payment.amount),
         payment.currency,
         {
-          payment_id: payment.id,
-          reference_type: payment.reference_type,
-          reference_id: payment.reference_id,
+          paymentId: payment.id,
+          referenceType: payment.referenceType,
+          referenceId: payment.referenceId,
         },
       );
 
       await this.paymentService.updatePayment(payment.id, {
         provider: PaymentProvider.STRIPE,
-        provider_payment_id: paymentIntent.payment_intent_id,
+        providerPaymentId: paymentIntent.payment_intent_id,
       });
 
       return {
         success: true,
         provider: PaymentProvider.STRIPE,
-        client_secret: paymentIntent.client_secret,
-        payment_intent_id: paymentIntent.payment_intent_id,
+        clientSecret: paymentIntent.client_secret,
+        paymentIntentId: paymentIntent.payment_intent_id,
       };
     }
 
@@ -138,13 +138,13 @@ export class PaymentController {
     if (isDevelopment) {
       await this.paymentService.updatePayment(id, {
         status: 'SUCCESS' as any,
-        provider: payment.provider || PaymentProvider.RAZORPAY,
-        provider_payment_id: verifyPaymentDto.provider_payment_id || `dev_bypass_${Date.now()}`,
+        provider: (payment.provider || PaymentProvider.RAZORPAY) as any,
+        providerPaymentId: verifyPaymentDto.providerPaymentId || `dev_bypass_${Date.now()}`,
       });
 
       // Confirm the appointment if it's an appointment payment
-      if (payment.reference_type === 'APPOINTMENT') {
-        await this.appointmentsService.confirmAppointment(payment.reference_id);
+      if (payment.referenceType === 'APPOINTMENT') {
+        await this.appointmentsService.confirmAppointment(payment.referenceId);
       }
 
       return {
@@ -154,14 +154,14 @@ export class PaymentController {
     }
 
     // Production: Validate required fields
-    if (!verifyPaymentDto.provider_order_id || !verifyPaymentDto.provider_payment_id || !verifyPaymentDto.signature) {
+    if (!verifyPaymentDto.providerOrderId || !verifyPaymentDto.providerPaymentId || !verifyPaymentDto.signature) {
       throw new BadRequestException('Missing required payment verification data');
     }
 
     if (payment.provider === PaymentProvider.RAZORPAY) {
       const isValid = await this.razorpayGateway.verifyPaymentSignature(
-        verifyPaymentDto.provider_order_id,
-        verifyPaymentDto.provider_payment_id,
+        verifyPaymentDto.providerOrderId,
+        verifyPaymentDto.providerPaymentId,
         verifyPaymentDto.signature,
       );
 
@@ -171,12 +171,12 @@ export class PaymentController {
 
       await this.paymentService.updatePayment(payment.id, {
         status: 'SUCCESS' as any,
-        provider_payment_id: verifyPaymentDto.provider_payment_id,
+        providerPaymentId: verifyPaymentDto.providerPaymentId,
       });
 
       // Confirm the appointment if it's an appointment payment
-      if (payment.reference_type === 'APPOINTMENT') {
-        await this.appointmentsService.confirmAppointment(payment.reference_id);
+      if (payment.referenceType === 'APPOINTMENT') {
+        await this.appointmentsService.confirmAppointment(payment.referenceId);
       }
 
       return {
@@ -198,7 +198,7 @@ export class PaymentController {
 
     // Create Razorpay order
     const order = await this.razorpayGateway.createOrder(
-      parseFloat(payment.amount),
+      Number(payment.amount),
       payment.currency,
       payment.id,
     );
@@ -206,13 +206,13 @@ export class PaymentController {
     // Update payment with provider order ID
     await this.paymentService.updatePayment(payment.id, {
       provider: PaymentProvider.RAZORPAY,
-      provider_order_id: order.order_id,
+      providerOrderId: order.order_id,
     });
 
     return {
       success: true,
-      provider_order_id: order.order_id,
-      amount: parseFloat(payment.amount),
+      providerOrderId: order.order_id,
+      amount: Number(payment.amount),
       currency: payment.currency,
       key: process.env.RAZORPAY_KEY_ID,
     };
@@ -232,7 +232,7 @@ export class PaymentController {
       );
     }
 
-    if (!payment.provider_payment_id) {
+    if (!payment.providerPaymentId) {
       throw new BadRequestException('Payment ID not found for refund');
     }
 
@@ -240,13 +240,13 @@ export class PaymentController {
 
     if (payment.provider === PaymentProvider.RAZORPAY) {
       refund = await this.razorpayGateway.refundPayment(
-        payment.provider_payment_id,
+        payment.providerPaymentId,
         refundPaymentDto.amount,
         refundPaymentDto.notes,
       );
     } else if (payment.provider === PaymentProvider.STRIPE) {
       refund = await this.stripeGateway.createRefund(
-        payment.provider_payment_id,
+        payment.providerPaymentId,
         refundPaymentDto.amount,
         'requested_by_customer',
       );

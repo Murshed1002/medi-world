@@ -3,73 +3,24 @@
   "configurations": [
     {
       "type": "node",
-      "request": "attach",
-      "name": "Attach to Backend (NestJS)",
-      "port": 9229,
-      "restart": true,
-      "stopOnEntry": false,
-      "protocol": "inspector",
-      "skipFiles": ["<node_internals>/**"],
-      "sourceMaps": true,
-      "cwd": "${workspaceFolder}/medi-service",
-      "outFiles": ["${workspaceFolder}/medi-service/dist/**/*.js"],
-      "resolveSourceMapLocations": [
-        "${workspaceFolder}/medi-service/**",
-        "!**/node_modules/**"
-      ]
-    },
-    {
-      "type": "node",
       "request": "launch",
       "name": "medi-service",
-      "runtimeExecutable": "npm",
+      "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "start:debug"],
       "cwd": "${workspaceFolder}/medi-service",
       "console": "integratedTerminal",
       "restart": true,
-      "skipFiles": ["<node_internals>/**"],
-      "sourceMaps": true,
-      "outFiles": ["${workspaceFolder}/medi-service/dist/**/*.js"],
-      "resolveSourceMapLocations": [
-        "${workspaceFolder}/medi-service/**",
-        "!**/node_modules/**"
-      ]
+      "skipFiles": ["<node_internals>/**"]
     },
     {
       "type": "node",
       "request": "launch",
-      "name": "Debug Frontend (Next.js)",
-      "runtimeExecutable": "npm",
+      "name": "client-app",
+      "runtimeExecutable": "pnpm",
       "runtimeArgs": ["run", "dev"],
       "cwd": "${workspaceFolder}/client-app",
       "console": "integratedTerminal",
-      "skipFiles": ["<node_internals>/**"],
-      "serverReadyAction": {
-        "pattern": "- Local:.+(https?://.+)",
-        "uriFormat": "%s",
-        "action": "debugWithChrome"
-      }
-    },
-    {
-      "type": "chrome",
-      "request": "launch",
-      "name": "Debug Frontend in Chrome",
-      "url": "http://localhost:3000",
-      "webRoot": "${workspaceFolder}/client-app",
-      "sourceMaps": true,
-      "sourceMapPathOverrides": {
-        "webpack://_N_E/*": "${webRoot}/*"
-      }
-    }
-  ],
-  "compounds": [
-    {
-      "name": "Debug Full Stack",
-      "configurations": [
-        "Debug Backend (NestJS)",
-        "Debug Frontend in Chrome"
-      ],
-      "stopAll": true
+      "skipFiles": ["<node_internals>/**"]
     }
   ]
 }

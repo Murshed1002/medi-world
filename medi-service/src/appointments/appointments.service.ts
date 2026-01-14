@@ -4,15 +4,36 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
-import { AppointmentsRepository } from './appointments.repository';
+import { InjectRepository } from '@mikro-orm/nestjs';
+import { EntityRepository, EntityManager } from '@mikro-orm/postgresql';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { AppointmentStatus } from './types/appointment-status';
 import { addMinutes } from 'date-fns';
+import { Appointments } from '../entities/appointments.entity';
+import { Patients } from '../entities/patients.entity';
+import { DoctorClinics } from '../entities/doctor-clinics.entity';
+import { ClinicQueues } from '../entities/clinic-queues.entity';
+import { QueueEntries } from '../entities/queue-entries.entity';
+import { Payments } from '../entities/payments.entity';
+import { Clinics } from '../entities/clinics.entity';
+import { Doctors } from '../entities/doctors.entity';
 
 @Injectable()
 export class AppointmentsService {
   constructor(
-    private readonly repo: AppointmentsRepository,
+    @InjectRepository(Appointments)
+    private readonly appointmentsRepo: EntityRepository<Appointments>,
+    @InjectRepository(Patients)
+    private readonly patientsRepo: EntityRepository<Patients>,
+    @InjectRepository(DoctorClinics)
+    private readonly doctorClinicsRepo: EntityRepository<DoctorClinics>,
+    @InjectRepository(ClinicQueues)
+    private readonly clinicQueuesRepo: EntityRepository<ClinicQueues>,
+    @InjectRepository(QueueEntries)
+    private readonly queueEntriesRepo: EntityRepository<QueueEntries>,
+    @InjectRepository(Payments)
+    private readonly paymentsRepo: EntityRepository<Payments>,
+    private readonly em: EntityManager,
   ) {}
 
   async createAppointment(
@@ -22,30 +43,34 @@ export class AppointmentsService {
     // Convert date string to Date object
     const appointmentDate = new Date(dto.appointmentDate);
     
-    // Convert time strings to DateTime (date part is ignored by TIME column)
-    const slotStartTime = new Date(`1970-01-01T${dto.slotStartTime}:00.000Z`);
-    const slotEndTime = new Date(`1970-01-01T${dto.slotEndTime}:00.000Z`);
+    // Time columns expect HH:MM:SS format as strings
+    const slotStartTime = dto.slotStartTime;
+    const slotEndTime = dto.slotEndTime;
 
-    return this.repo.withTransaction(async (tx) => {
+    return this.em.transactional(async (em) => {
       // Get patient record from auth_user_id
-      const patient = await tx.findPatientByAuthUserId(authUserId);
+      const patient = await em.findOne(Patients, { authUser: authUserId });
       if (!patient) {
         throw new BadRequestException('Patient profile not found');
       }
 
       // Check if this patient already has a PAYMENT_PENDING appointment for this exact slot
-      const existingPendingAppointment = await tx.findPendingAppointment(
-        patient.id,
-        dto.doctorId,
-        dto.clinicId,
-        dto.appointmentDate,
-        dto.slotStartTime,
-      );
+      const existingPendingAppointment = await em.findOne(Appointments, {
+        patient: patient,
+        doctor: dto.doctorId,
+        clinic: dto.clinicId,
+        appointmentDate,
+        slotStartTime: dto.slotStartTime,
+        status: AppointmentStatus.PAYMENT_PENDING,
+      });
 
       // If user already has a pending appointment for this slot, reuse it
       if (existingPendingAppointment) {
         // Find the associated payment
-        const payment = await tx.findPaymentByAppointmentId(existingPendingAppointment.id);
+        const payment = await em.findOne(Payments, {
+          referenceType: 'APPOINTMENT',
+          referenceId: existingPendingAppointment.id,
+        });
         
         if (payment) {
           // Return existing appointment and payment (user can retry payment)
@@ -59,89 +84,100 @@ export class AppointmentsService {
       }
 
       // Get booking fee from doctor_clinics table
-      const fees = await tx.getDoctorClinicFees(dto.doctorId, dto.clinicId);
-      if (!fees || !fees.booking_fee) {
+      const doctorClinic = await em.findOne(DoctorClinics, {
+        doctor: dto.doctorId,
+        clinic: dto.clinicId,
+      });
+      
+      if (!doctorClinic || !doctorClinic.bookingFee) {
         throw new BadRequestException('Doctor clinic configuration not found');
       }
 
-      const bookingFee = fees.booking_fee;
+      const bookingFee = doctorClinic.bookingFee;
 
-      // 1️⃣ Validate slot availability (LOCKED) - excludes this patient's own pending appointments
-      const exists = await tx.isSlotBooked(
-        dto.doctorId,
-        dto.clinicId,
-        dto.appointmentDate,
-        dto.slotStartTime,
-      );
+      // 1️⃣ Validate slot availability - check if slot is already booked by other patients
+      const exists = await em.count(Appointments, {
+        doctor: dto.doctorId,
+        clinic: dto.clinicId,
+        appointmentDate,
+        slotStartTime: dto.slotStartTime,
+        status: { $nin: [AppointmentStatus.CANCELLED_BY_PATIENT, AppointmentStatus.CANCELLED_BY_DOCTOR] },
+        patient: { $ne: patient }, // Exclude this patient's appointments
+      });
 
-      if (exists) {
+      if (exists > 0) {
         throw new ConflictException('Slot already booked');
       }
 
-      // 2️⃣ Create appointment using Prisma connect syntax
-      const appointment = await tx.createAppointment({
-        appointment_date: appointmentDate,
-        slot_start_time: slotStartTime,
-        slot_end_time: slotEndTime,
+      // 2️⃣ Create appointment
+      const patientRef = em.getReference(Patients, patient.id);
+      const doctorRef = em.getReference(Doctors, dto.doctorId);
+      const clinicRef = em.getReference(Clinics, dto.clinicId);
+      
+      const appointment = em.create(Appointments, {
+        patient: patientRef,
+        doctor: doctorRef,
+        clinic: clinicRef,
+        appointmentDate,
+        slotStartTime,
+        slotEndTime,
         status: AppointmentStatus.PAYMENT_PENDING,
-        booking_fee_amount: bookingFee,
-        patients: {
-          connect: { id: patient.id }
-        },
-        doctors: {
-          connect: { id: dto.doctorId }
-        },
-        clinics: {
-          connect: { id: dto.clinicId }
-        }
+        bookingFeeAmount: bookingFee,
       });
+      await em.persistAndFlush(appointment);
 
       // 3️⃣ Create or get clinic queue for this date
-      let clinicQueue = await tx.findClinicQueue(
-        dto.clinicId,
-        dto.doctorId,
-        new Date(dto.appointmentDate),
-      );
+      let clinicQueue = await em.findOne(ClinicQueues, {
+        clinic: dto.clinicId,
+        doctor: dto.doctorId,
+        queueDate: appointmentDate,
+      });
 
       if (!clinicQueue) {
         // Create queue if doesn't exist
-        clinicQueue = await tx.createClinicQueue({
-          clinic_id: dto.clinicId,
-          doctor_id: dto.doctorId,
-          queue_date: new Date(dto.appointmentDate),
+        const clinic = await em.getReference(Clinics, dto.clinicId);
+        const doctor = await em.getReference(Doctors, dto.doctorId);
+        
+        clinicQueue = em.create(ClinicQueues, {
+          clinic,
+          doctor,
+          queueDate: appointmentDate,
           status: 'NOT_STARTED',
-          current_token_number: 0,
-          last_issued_token_number: 0,
+          currentTokenNumber: 0,
+          lastIssuedTokenNumber: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         });
+        await em.persistAndFlush(clinicQueue);
       }
 
       // 4️⃣ Assign token number
-      const tokenNumber = clinicQueue.last_issued_token_number + 1;
+      const tokenNumber = clinicQueue.lastIssuedTokenNumber + 1;
 
       // Update last issued token
-      await tx.updateClinicQueue(clinicQueue.id, {
-        last_issued_token_number: tokenNumber,
-      });
+      clinicQueue.lastIssuedTokenNumber = tokenNumber;
+      await em.flush();
 
       // Create queue entry
-      await tx.createQueueEntry({
-        clinic_queue_id: clinicQueue.id,
-        appointment_id: appointment.id,
-        token_number: tokenNumber,
+      const queueEntry = em.create(QueueEntries, {
+        clinicQueueId: clinicQueue.id,
+        appointment: appointment,
+        tokenNumber,
         status: 'WAITING',
-        check_in_time: new Date(), // Already checked in
       });
+      await em.persistAndFlush(queueEntry);
 
       // 5️⃣ Create payment intent
-      const payment = await tx.createPayment({
-        reference_type: 'APPOINTMENT',
-        reference_id: appointment.id,
-        patient_id: patient.id,
+      const payment = em.create(Payments, {
+        referenceType: 'APPOINTMENT',
+        referenceId: appointment.id,
+        patientId: patient.id,
         amount: bookingFee,
         currency: 'INR',
-        payment_type: 'BOOKING_FEE',
+        paymentType: 'BOOKING_FEE',
         status: 'CREATED',
       });
+      await em.persistAndFlush(payment);
 
       return {
         appointmentId: appointment.id,
@@ -153,7 +189,7 @@ export class AppointmentsService {
   }
 
   async confirmAppointment(appointmentId: string) {
-    const appointment = await this.repo.findAppointmentById(appointmentId);
+    const appointment = await this.appointmentsRepo.findOne({ id: appointmentId });
     
     if (!appointment) {
       throw new NotFoundException(`Appointment with ID ${appointmentId} not found`);
@@ -166,39 +202,45 @@ export class AppointmentsService {
     }
 
     // Update appointment status to CONFIRMED
-    return this.repo.updateAppointment(appointmentId, {
-      status: AppointmentStatus.CONFIRMED,
-    });
+    appointment.status = AppointmentStatus.CONFIRMED;
+    await this.em.flush();
+    
+    return appointment;
   }
 
   async getAppointmentById(appointmentId: string) {
-    const appointment = await this.repo.findAppointmentById(appointmentId);
+    const appointment = await this.appointmentsRepo.findOne(
+      { id: appointmentId },
+      { populate: ['doctor', 'clinic'] }
+    );
     
     if (!appointment) {
       throw new NotFoundException(`Appointment with ID ${appointmentId} not found`);
     }
 
-    // Fetch payment separately since we removed the direct relation
-    const payment = await this.repo.findPaymentByAppointmentId(appointmentId);
+    // Fetch payment separately
+    const payment = await this.paymentsRepo.findOne({
+      referenceType: 'APPOINTMENT',
+      referenceId: appointmentId,
+    });
 
-    // Transform response to match frontend expectations (singular names and correct field names)
+    // Transform response to match frontend expectations
     return {
       id: appointment.id,
-      appointmentDate: appointment.appointment_date,
-      slotStartTime: appointment.slot_start_time,
-      slotEndTime: appointment.slot_end_time,
+      appointmentDate: appointment.appointmentDate,
+      slotStartTime: appointment.slotStartTime,
+      slotEndTime: appointment.slotEndTime,
       status: appointment.status,
-      tokenNumber: appointment.queue_token_number,
-      doctor: appointment.doctors ? {
-        id: appointment.doctors.id,
-        name: appointment.doctors.full_name,
-        specialization: appointment.doctors.specialization,
+      tokenNumber: appointment.queueTokenNumber,
+      doctor: appointment.doctor ? {
+        id: appointment.doctor.id,
+        name: appointment.doctor.name,
+        specialization: appointment.doctor.specialization,
       } : null,
-      clinic: appointment.clinics ? {
-        id: appointment.clinics.id,
-        name: appointment.clinics.name,
-        address: appointment.clinics.address,
-        city: appointment.clinics.city,
+      clinic: appointment.clinic ? {
+        id: appointment.clinic.id,
+        name: appointment.clinic.name,
+        address: appointment.clinic.address,
       } : null,
       payment: payment ? {
         amount: Number(payment.amount),
@@ -208,6 +250,8 @@ export class AppointmentsService {
   }
 
   async getAllAppointments() {
-    return this.repo.findAllAppointments();
+    return this.appointmentsRepo.findAll({
+      populate: ['patient', 'doctor', 'clinic'],
+    });
   }
 }

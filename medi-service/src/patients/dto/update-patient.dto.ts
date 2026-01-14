@@ -9,7 +9,7 @@ export enum Gender {
 export class UpdatePatientDto {
   @IsOptional()
   @IsString()
-  full_name?: string;
+  fullName?: string;
 
   @IsOptional()
   @IsString()
@@ -25,13 +25,13 @@ export class UpdatePatientDto {
 
   @IsOptional()
   @IsString()
-  emergency_contact_name?: string;
+  emergencyContactName?: string;
 
   @IsOptional()
   @IsString()
-  emergency_contact_relation?: string;
+  emergencyContactRelation?: string;
 
   @IsOptional()
   @IsString()
-  emergency_contact_phone?: string;
+  emergencyContactPhone?: string;
 }

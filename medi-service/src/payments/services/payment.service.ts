@@ -1,71 +1,40 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Pool } from 'pg';
+import { InjectRepository } from '@mikro-orm/nestjs';
+import { EntityRepository } from '@mikro-orm/postgresql';
 import { CreatePaymentDto } from '../dto/create-payment.dto';
 import { UpdatePaymentDto } from '../dto/update-payment.dto';
 import { PaymentIntentDto } from '../dto/payment-intent.dto';
 import { PaymentStatus, PaymentReferenceType } from '../types/payment.types';
+import { Payments } from '../../entities/payments.entity';
 
 @Injectable()
 export class PaymentService {
-  private pool: Pool;
-
-  constructor() {
-    this.pool = new Pool({
-      host: process.env.DB_HOST || process.env.HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || process.env.PORT || '5432'),
-      user: process.env.DB_USER || process.env.USER || 'postgres',
-      password: process.env.DB_PASSWORD || process.env.PASS || '',
-      database: process.env.DB_NAME || process.env.DB || 'postgres',
-    });
-  }
+  constructor(
+    @InjectRepository(Payments)
+    private readonly paymentsRepo: EntityRepository<Payments>,
+  ) {}
 
   async createPayment(createPaymentDto: CreatePaymentDto) {
-    const {
-      reference_type,
-      reference_id,
-      patient_id,
-      amount,
-      currency = 'INR',
-      payment_type,
-      metadata,
-    } = createPaymentDto;
+    const payment = this.paymentsRepo.create({
+      referenceType: createPaymentDto.referenceType,
+      referenceId: createPaymentDto.referenceId,
+      patientId: createPaymentDto.patientId,
+      amount: createPaymentDto.amount,
+      currency: createPaymentDto.currency || 'INR',
+      paymentType: createPaymentDto.paymentType,
+      status: PaymentStatus.CREATED,
+      metadata: createPaymentDto.metadata,
+    });
 
-    const result = await this.pool.query(
-      `
-      INSERT INTO payments (
-        reference_type, reference_id, patient_id, 
-        amount, currency, payment_type, status, metadata
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *
-    `,
-      [
-        reference_type,
-        reference_id,
-        patient_id,
-        amount,
-        currency,
-        payment_type,
-        PaymentStatus.CREATED,
-        metadata ? JSON.stringify(metadata) : null,
-      ],
-    );
-
-    return result.rows[0];
+    await this.paymentsRepo.getEntityManager().persistAndFlush(payment);
+    return payment;
   }
 
   async getPaymentById(id: string) {
-    const result = await this.pool.query(
-      'SELECT * FROM payments WHERE id = $1',
-      [id],
-    );
+    const payment = await this.paymentsRepo.findOne({ id });
 
-    if (result.rows.length === 0) {
+    if (!payment) {
       throw new NotFoundException(`Payment with ID ${id} not found`);
-    }
-
-    const payment = result.rows[0];
-    if (payment.metadata) {
-      payment.metadata = JSON.parse(payment.metadata);
     }
 
     return payment;
@@ -76,19 +45,19 @@ export class PaymentService {
 
     // Build context based on reference type and metadata
     const context = await this.buildPaymentContext(
-      payment.reference_type,
-      payment.reference_id,
+      payment.referenceType,
+      payment.referenceId,
       payment.metadata,
-      payment.payment_type,
+      payment.paymentType,
     );
 
     return {
       id: payment.id,
-      purpose: payment.payment_type,
-      reference_id: payment.reference_id,
-      amount: parseFloat(payment.amount),
+      purpose: payment.paymentType,
+      referenceId: payment.referenceId,
+      amount: parseFloat(payment.amount.toString()),
       currency: payment.currency,
-      status: payment.status,
+      status: payment.status as PaymentStatus,
       context,
     };
   }
@@ -96,109 +65,53 @@ export class PaymentService {
   async updatePayment(id: string, updatePaymentDto: UpdatePaymentDto) {
     const payment = await this.getPaymentById(id);
 
-    const setClauses: string[] = [];
-    const values: any[] = [];
-    let paramIndex = 1;
-
     if (updatePaymentDto.status) {
-      setClauses.push(`status = $${paramIndex}`);
-      values.push(updatePaymentDto.status);
-      paramIndex++;
+      payment.status = updatePaymentDto.status;
     }
 
-    if (updatePaymentDto.payment_method) {
-      setClauses.push(`payment_method = $${paramIndex}`);
-      values.push(updatePaymentDto.payment_method);
-      paramIndex++;
+    if (updatePaymentDto.paymentMethod) {
+      payment.paymentMethod = updatePaymentDto.paymentMethod;
     }
 
     if (updatePaymentDto.provider) {
-      setClauses.push(`provider = $${paramIndex}`);
-      values.push(updatePaymentDto.provider);
-      paramIndex++;
+      payment.provider = updatePaymentDto.provider;
     }
 
-    if (updatePaymentDto.provider_order_id) {
-      setClauses.push(`provider_order_id = $${paramIndex}`);
-      values.push(updatePaymentDto.provider_order_id);
-      paramIndex++;
+    if (updatePaymentDto.providerOrderId) {
+      payment.providerOrderId = updatePaymentDto.providerOrderId;
     }
 
-    if (updatePaymentDto.provider_payment_id) {
-      setClauses.push(`provider_payment_id = $${paramIndex}`);
-      values.push(updatePaymentDto.provider_payment_id);
-      paramIndex++;
+    if (updatePaymentDto.providerPaymentId) {
+      payment.providerPaymentId = updatePaymentDto.providerPaymentId;
     }
 
-    setClauses.push(`updated_at = NOW()`);
-
-    values.push(id);
-
-    const result = await this.pool.query(
-      `UPDATE payments SET ${setClauses.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
-      values,
-    );
-
-    return result.rows[0];
+    await this.paymentsRepo.getEntityManager().flush();
+    return payment;
   }
 
   async getPaymentsByReference(
     referenceType: PaymentReferenceType,
     referenceId: string,
   ) {
-    const result = await this.pool.query(
-      'SELECT * FROM payments WHERE reference_type = $1 AND reference_id = $2 ORDER BY created_at DESC',
-      [referenceType, referenceId],
+    return this.paymentsRepo.find(
+      { referenceType, referenceId },
+      { orderBy: { createdAt: 'desc' } }
     );
-
-    return result.rows.map((payment) => {
-      if (payment.metadata) {
-        payment.metadata = JSON.parse(payment.metadata);
-      }
-      return payment;
-    });
   }
 
   async getPaymentsByPatient(patientId: string) {
-    const result = await this.pool.query(
-      'SELECT * FROM payments WHERE patient_id = $1 ORDER BY created_at DESC',
-      [patientId],
+    return this.paymentsRepo.find(
+      { patientId },
+      { orderBy: { createdAt: 'desc' } }
     );
-
-    return result.rows.map((payment) => {
-      if (payment.metadata) {
-        payment.metadata = JSON.parse(payment.metadata);
-      }
-      return payment;
-    });
   }
 
   async findByProviderOrderId(providerOrderId: string) {
-    const result = await this.pool.query(
-      'SELECT * FROM payments WHERE provider_order_id = $1',
-      [providerOrderId],
-    );
-
-    return result.rows.map((payment) => {
-      if (payment.metadata) {
-        payment.metadata = JSON.parse(payment.metadata);
-      }
-      return payment;
-    });
+    return this.paymentsRepo.find({ providerOrderId });
   }
 
   async findByProviderPaymentId(providerPaymentId: string) {
-    const result = await this.pool.query(
-      'SELECT * FROM payments WHERE provider_payment_id = $1',
-      [providerPaymentId],
-    );
-
-    return result.rows.map((payment) => {
-      if (payment.metadata) {
-        payment.metadata = JSON.parse(payment.metadata);
-      }
-      return payment;
-    });
+    return this.paymentsRepo.find({ providerPaymentId });
   }
 
   private async buildPaymentContext(
@@ -230,9 +143,12 @@ export class PaymentService {
     appointmentId: string,
     metadata: any,
   ) {
-    // Fetch appointment details
+    // Fetch appointment details using EntityManager knex for raw SQL
     try {
-      const result = await this.pool.query(
+      const em = this.paymentsRepo.getEntityManager();
+      const knex = em.getKnex();
+      
+      const result = await knex.raw(
         `
         SELECT 
           a.id, a.scheduled_at, a.status,
@@ -242,12 +158,12 @@ export class PaymentService {
         FROM appointments a
         JOIN patients p ON a.patient_id = p.id
         JOIN doctors d ON a.doctor_id = d.id
-        WHERE a.id = $1
+        WHERE a.id = ?
       `,
         [appointmentId],
       );
 
-      if (result.rows.length === 0) {
+      if (!result.rows || result.rows.length === 0) {
         return {
           title: 'Doctor Consultation',
           subtitle: 'Appointment Booking',

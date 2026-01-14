@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../../common/prisma/prisma.service';
+import { InjectRepository } from '@mikro-orm/nestjs';
+import { EntityRepository } from '@mikro-orm/core';
 import { PaymentService } from './payment.service';
 import { PaymentStatus, PaymentProvider } from '../types/payment.types';
+import { WebhookEvents } from '../../entities/webhook-events.entity';
 
 @Injectable()
 export class WebhookService {
@@ -9,7 +11,8 @@ export class WebhookService {
 
   constructor(
     private readonly paymentService: PaymentService,
-    private readonly prisma: PrismaService,
+    @InjectRepository(WebhookEvents)
+    private readonly webhookEventsRepo: EntityRepository<WebhookEvents>,
   ) {}
 
   private async checkAndRecordWebhookEvent(
@@ -19,20 +22,39 @@ export class WebhookService {
     payload: any,
   ): Promise<boolean> {
     try {
-      // Try to insert the webhook event - will fail if duplicate due to unique constraint
-      await this.prisma.$executeRaw`
-        INSERT INTO webhook_events (provider, event_id, event_type, payload, processed)
-        VALUES (${provider}, ${eventId}, ${eventType}, ${JSON.stringify(payload)}::jsonb, false)
-      `;
-      
-      return true;
-    } catch (error: any) {
-      // Check if it's a unique constraint violation
-      if (error.code === '23505' || error.message?.includes('unique constraint')) {
+      // Check if event already exists
+      const existing = await this.webhookEventsRepo.findOne({
+        provider,
+        eventId,
+      });
+
+      if (existing) {
         this.logger.warn(`Duplicate webhook event detected: ${provider}:${eventId}`);
         return false;
       }
+
+      // Create new webhook event record
+      const webhookEvent = this.webhookEventsRepo.create({
+        provider,
+        eventId,
+        eventType,
+        payload,
+        processed: false,
+      });
       
+      await this.webhookEventsRepo.getEntityManager().persistAndFlush(webhookEvent);
+      return true;
+    } catch (error: any) {
+      const webhookEvent = await this.webhookEventsRepo.findOne({
+        provider,
+        eventId,
+      });
+
+      if (webhookEvent) {
+        webhookEvent.processed = true;
+        webhookEvent.processedAt = new Date();
+        await this.webhookEventsRepo.getEntityManager().flush();
+      }
       this.logger.error('Error checking webhook event:', error);
       // In case of other errors, allow processing (fail open)
       return true;
@@ -41,11 +63,16 @@ export class WebhookService {
 
   private async markWebhookProcessed(provider: string, eventId: string) {
     try {
-      await this.prisma.$executeRaw`
-        UPDATE webhook_events
-        SET processed = true, processed_at = NOW()
-        WHERE provider = ${provider} AND event_id = ${eventId}
-      `;
+      const webhookEvent = await this.webhookEventsRepo.findOne({
+        provider,
+        eventId,
+      });
+
+      if (webhookEvent) {
+        webhookEvent.processed = true;
+        webhookEvent.processedAt = new Date();
+        await this.webhookEventsRepo.getEntityManager().flush();
+      }
     } catch (error) {
       this.logger.error('Error marking webhook as processed:', error);
     }
@@ -173,8 +200,8 @@ export class WebhookService {
     const paymentRecord = payments[0];
     await this.paymentService.updatePayment(paymentRecord.id, {
       status: PaymentStatus.PENDING,
-      provider_payment_id: payment.id,
-      payment_method: payment.method?.toUpperCase(),
+      providerPaymentId: payment.id,
+      paymentMethod: payment.method?.toUpperCase(),
     });
   }
 
@@ -193,7 +220,7 @@ export class WebhookService {
     const paymentRecord = payments[0];
     await this.paymentService.updatePayment(paymentRecord.id, {
       status: PaymentStatus.SUCCESS,
-      payment_method: payment.method?.toUpperCase(),
+      paymentMethod: payment.method?.toUpperCase(),
     });
 
     this.logger.log(`Payment ${paymentRecord.id} marked as SUCCESS`);
@@ -258,7 +285,7 @@ export class WebhookService {
     const paymentRecord = payments[0];
     await this.paymentService.updatePayment(paymentRecord.id, {
       status: PaymentStatus.SUCCESS,
-      payment_method: paymentIntent.payment_method_types?.[0]?.toUpperCase(),
+      paymentMethod: paymentIntent.payment_method_types?.[0]?.toUpperCase(),
     });
 
     this.logger.log(`Payment ${paymentRecord.id} marked as SUCCESS`);

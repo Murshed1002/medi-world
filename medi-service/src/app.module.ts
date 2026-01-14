@@ -4,7 +4,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrismaModule } from './common/prisma/prisma.module';
+import { DatabaseModule } from './common/database/database.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { PaymentModule } from './payments/payment.module';
@@ -22,7 +22,7 @@ import { DoctorsModule } from './doctors/doctors.module';
       ttl: 60000, // 60 seconds
       limit: 100, // 100 requests per minute
     }]),
-    PrismaModule,
+    DatabaseModule,
     RedisModule,
     AppointmentsModule,
     PaymentModule,

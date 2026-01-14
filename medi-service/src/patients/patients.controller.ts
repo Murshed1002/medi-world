@@ -17,13 +17,13 @@ export class PatientsController {
 
   @Get('profile')
   async getProfile(@Req() req: any) {
-    return this.patientsService.getPatientProfile(req.user.user_id);
+    return this.patientsService.getPatientProfile(req.user.userId);
   }
 
   @Put('profile')
   async updateProfile(@Req() req: any, @Body() updateDto: UpdatePatientDto) {
     return this.patientsService.updatePatientProfile(
-      req.user.user_id,
+      req.user.userId,
       updateDto,
     );
   }

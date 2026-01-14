@@ -6,8 +6,8 @@ export enum UserRole {
 }
 
 export interface JwtPayload {
-  user_id: string;
-  phone_number: string;
+  userId: string;
+  phoneNumber: string;
   role: UserRole;
   iat?: number;
   exp?: number;
@@ -16,7 +16,7 @@ export interface JwtPayload {
 export interface AuthTokens {
   access_token: string;
   refresh_token: string;
-  expires_in: number;
+  expiresIn: number;
 }
 
 export interface DeviceInfo {

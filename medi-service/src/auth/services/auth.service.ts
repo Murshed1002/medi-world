@@ -1,7 +1,12 @@
 import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../../common/prisma/prisma.service';
+import { InjectRepository } from '@mikro-orm/nestjs';
+import { EntityRepository } from '@mikro-orm/postgresql';
 import { RedisService } from '../../common/redis/redis.service';
+import { AuthUsers } from '../../entities/auth-users.entity';
+import { RefreshTokens } from '../../entities/refresh-tokens.entity';
+import { Patients } from '../../entities/patients.entity';
+import { Doctors } from '../../entities/doctors.entity';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import type { JwtPayload, AuthTokens, DeviceInfo } from '../types/auth.types';
@@ -13,7 +18,14 @@ export class AuthService {
 
   constructor(
     private readonly jwtService: JwtService,
-    private readonly prisma: PrismaService,
+    @InjectRepository(AuthUsers)
+    private readonly authUsersRepo: EntityRepository<AuthUsers>,
+    @InjectRepository(RefreshTokens)
+    private readonly refreshTokensRepo: EntityRepository<RefreshTokens>,
+    @InjectRepository(Patients)
+    private readonly patientsRepo: EntityRepository<Patients>,
+    @InjectRepository(Doctors)
+    private readonly doctorsRepo: EntityRepository<Doctors>,
     private readonly redis: RedisService,
   ) {}
 
@@ -22,25 +34,49 @@ export class AuthService {
     ipAddress?: string,
     userAgent?: string,
     deviceInfo?: DeviceInfo,
+    role: 'PATIENT' | 'DOCTOR' = 'PATIENT',
   ): Promise<AuthTokens & { user: any }> {
     // Find or create user
-    let user = await this.prisma.auth_users.findUnique({
-      where: { phone_number: phoneNumber },
-    });
+    let user = await this.authUsersRepo.findOne(
+      { phoneNumber },
+      { populate: ['patient', 'doctor'] }
+    );
 
     if (!user) {
-      // Create new user with PATIENT role by default
-      user = await this.prisma.auth_users.create({
-        data: {
-          phone_number: phoneNumber,
-          role: 'PATIENT',
-        },
+      // Create new user with specified role
+      user = this.authUsersRepo.create({
+        phoneNumber,
+        role,
       });
-      this.logger.log(`New user created: ${user.id}`);
+      this.authUsersRepo.getEntityManager().persist(user);
+      await this.authUsersRepo.getEntityManager().flush();
+      
+      // Create role-specific record
+      if (role === 'PATIENT') {
+        const patient = this.patientsRepo.create({
+          authUser: user,
+          name: '', // To be updated by user
+          phoneNumber,
+        });
+        this.patientsRepo.getEntityManager().persist(patient);
+        await this.patientsRepo.getEntityManager().flush();
+        this.logger.log(`New patient created for user: ${user.id}`);
+      } else if (role === 'DOCTOR') {
+        const doctor = this.doctorsRepo.create({
+          authUser: user,
+          name: '', // To be updated by user
+          phoneNumber,
+        });
+        this.doctorsRepo.getEntityManager().persist(doctor);
+        await this.doctorsRepo.getEntityManager().flush();
+        this.logger.log(`New doctor created for user: ${user.id}`);
+      }
+      
+      this.logger.log(`New user created: ${user.id} with role: ${role}`);
     }
 
     // Check if user is active
-    if (!user.is_active) {
+    if (!user.isActive) {
       throw new UnauthorizedException('Account is deactivated');
     }
 
@@ -52,14 +88,25 @@ export class AuthService {
       deviceInfo,
     );
 
+    // Return user data with appropriate role-specific info
+    const userData: any = {
+      id: user.id,
+      phoneNumber: user.phoneNumber,
+      email: user.email,
+      role: user.role,
+    };
+
+    if (user.role === 'PATIENT' && user.patient) {
+      userData.patientId = user.patient.id;
+      userData.name = user.patient.name;
+    } else if (user.role === 'DOCTOR' && user.doctor) {
+      userData.doctorId = user.doctor.id;
+      userData.name = user.doctor.name;
+    }
+
     return {
       ...tokens,
-      user: {
-        id: user.id,
-        phone_number: user.phone_number,
-        email: user.email,
-        role: user.role,
-      },
+      user: userData,
     };
   }
 
@@ -70,8 +117,8 @@ export class AuthService {
     deviceInfo?: DeviceInfo,
   ): Promise<AuthTokens> {
     const payload: JwtPayload = {
-      user_id: user.id,
-      phone_number: user.phone_number,
+      userId: user.id,
+      phoneNumber: user.phoneNumber,
       role: user.role,
     };
 
@@ -83,28 +130,28 @@ export class AuthService {
 
     // Generate refresh token (30 days)
     const refresh_token = crypto.randomBytes(64).toString('hex');
-    const refresh_token_hash = await bcrypt.hash(refresh_token, 10);
+    const refreshTokenHash = await bcrypt.hash(refresh_token, 10);
 
     const expiresAt = new Date(
       Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
     );
 
     // Store refresh token
-    await this.prisma.refresh_tokens.create({
-      data: {
-        user_id: user.id,
-        token_hash: refresh_token_hash,
-        expires_at: expiresAt,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-      },
+    const refreshToken = this.refreshTokensRepo.create({
+      user,
+      tokenHash: refreshTokenHash,
+      expiresAt,
+      ipAddress,
+      userAgent,
+      deviceInfo,
     });
+    this.refreshTokensRepo.getEntityManager().persist(refreshToken);
+    await this.refreshTokensRepo.getEntityManager().flush();
 
     return {
       access_token,
       refresh_token,
-      expires_in: 900, // 15 minutes in seconds
+      expiresIn: 900, // 15 minutes in seconds
     };
   }
 
@@ -114,25 +161,18 @@ export class AuthService {
     userAgent?: string,
   ): Promise<AuthTokens> {
     // Get all valid tokens
-    const tokens = await this.prisma.refresh_tokens.findMany({
-      where: {
-        revoked: false,
-        expires_at: {
-          gt: new Date(),
-        },
-      },
-      include: {
-        auth_users: true,
-      },
-      orderBy: {
-        created_at: 'desc',
-      },
+    const tokens = await this.refreshTokensRepo.find({
+      revoked: false,
+      expiresAt: { $gt: new Date() },
+    }, {
+      populate: ['user'],
+      orderBy: { createdAt: 'desc' },
     });
 
     // Find matching token
-    let matchedToken: any = null;
+    let matchedToken: RefreshTokens | null = null;
     for (const token of tokens) {
-      const isMatch = await bcrypt.compare(refreshToken, token.token_hash);
+      const isMatch = await bcrypt.compare(refreshToken, token.tokenHash);
       if (isMatch) {
         matchedToken = token;
         break;
@@ -144,37 +184,29 @@ export class AuthService {
     }
 
     // Check if user is active
-    if (!matchedToken.auth_users.is_active) {
+    if (!matchedToken.user.isActive) {
       throw new UnauthorizedException('Account is deactivated');
     }
 
     // Revoke old refresh token
-    await this.prisma.refresh_tokens.update({
-      where: { id: matchedToken.id },
-      data: {
-        revoked: true,
-        revoked_at: new Date(),
-      },
-    });
+    matchedToken.revoked = true;
+    matchedToken.revokedAt = new Date();
+    await this.refreshTokensRepo.getEntityManager().flush();
 
     // Generate new tokens (refresh token rotation)
     const newTokens = await this.generateTokens(
-      matchedToken.auth_users,
+      matchedToken.user,
       ipAddress,
       userAgent,
     );
 
     // Link old token to new one
     const newTokenHash = await bcrypt.hash(newTokens.refresh_token, 10);
-    const newTokenRecord = await this.prisma.refresh_tokens.findFirst({
-      where: { token_hash: newTokenHash },
-    });
+    const newTokenRecord = await this.refreshTokensRepo.findOne({ tokenHash: newTokenHash });
 
     if (newTokenRecord) {
-      await this.prisma.refresh_tokens.update({
-        where: { id: matchedToken.id },
-        data: { replaced_by: newTokenRecord.id },
-      });
+      matchedToken.replacedBy = newTokenRecord.id;
+      await this.refreshTokensRepo.getEntityManager().flush();
     }
 
     return newTokens;
@@ -188,30 +220,24 @@ export class AuthService {
     }
 
     // Find all non-revoked tokens with user information
-    const tokens = await this.prisma.refresh_tokens.findMany({
-      where: { revoked: false },
-      include: {
-        auth_users: true,
-      },
-    });
+    const tokens = await this.refreshTokensRepo.find(
+      { revoked: false },
+      { populate: ['user'] }
+    );
 
     // Find and revoke matching token
     for (const token of tokens) {
-      const isMatch = await bcrypt.compare(refreshToken, token.token_hash);
+      const isMatch = await bcrypt.compare(refreshToken, token.tokenHash);
       if (isMatch) {
-        await this.prisma.refresh_tokens.update({
-          where: { id: token.id },
-          data: {
-            revoked: true,
-            revoked_at: new Date(),
-          },
-        });
+        token.revoked = true;
+        token.revokedAt = new Date();
+        await this.refreshTokensRepo.getEntityManager().flush();
 
         // Clear user profile cache
-        await this.redis.deleteUserProfile(token.auth_users.id);
-        this.logger.log(`User profile cache cleared for ${token.auth_users.id}`);
+        await this.redis.deleteUserProfile(token.user.id);
+        this.logger.log(`User profile cache cleared for ${token.user.id}`);
 
-        return { success: true, phoneNumber: token.auth_users.phone_number };
+        return { success: true, phoneNumber: token.user.phoneNumber };
       }
     }
 
@@ -230,47 +256,34 @@ export class AuthService {
   }
 
   async getUserActiveSessions(userId: string) {
-    const sessions = await this.prisma.refresh_tokens.findMany({
-      where: {
-        user_id: userId,
-        revoked: false,
-        expires_at: {
-          gt: new Date(),
-        },
-      },
-      orderBy: {
-        created_at: 'desc',
-      },
-      select: {
-        id: true,
-        ip_address: true,
-        user_agent: true,
-        device_info: true,
-        created_at: true,
-        expires_at: true,
-      },
+    const sessions = await this.refreshTokensRepo.find({
+      user: userId,
+      revoked: false,
+      expiresAt: { $gt: new Date() },
+    }, {
+      orderBy: { createdAt: 'desc' },
     });
 
     return sessions.map((session) => ({
-      session_id: session.id,
-      ip_address: session.ip_address,
-      user_agent: session.user_agent,
-      device_info: session.device_info,
-      created_at: session.created_at,
-      expires_at: session.expires_at,
+      sessionId: session.id,
+      ipAddress: session.ipAddress,
+      userAgent: session.userAgent,
+      deviceInfo: session.deviceInfo,
+      createdAt: session.createdAt,
+      expiresAt: session.expiresAt,
     }));
   }
 
   async revokeSession(userId: string, sessionId: string): Promise<void> {
-    await this.prisma.refresh_tokens.updateMany({
-      where: {
-        id: sessionId,
-        user_id: userId,
-      },
-      data: {
-        revoked: true,
-        revoked_at: new Date(),
-      },
+    const session = await this.refreshTokensRepo.findOne({
+      id: sessionId,
+      user: userId,
     });
+
+    if (session) {
+      session.revoked = true;
+      session.revokedAt = new Date();
+      await this.refreshTokensRepo.getEntityManager().flush();
+    }
   }
 }

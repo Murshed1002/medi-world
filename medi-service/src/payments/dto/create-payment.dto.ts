@@ -5,15 +5,15 @@ import type { PaymentMetadata } from '../types/payment.types';
 export class CreatePaymentDto {
   @IsEnum(PaymentReferenceType)
   @IsNotEmpty()
-  reference_type: PaymentReferenceType;
+  referenceType: PaymentReferenceType;
 
   @IsUUID()
   @IsNotEmpty()
-  reference_id: string;
+  referenceId: string;
 
   @IsUUID()
   @IsNotEmpty()
-  patient_id: string;
+  patientId: string;
 
   @IsNumber()
   @Min(0)
@@ -25,7 +25,7 @@ export class CreatePaymentDto {
 
   @IsEnum(PaymentType)
   @IsNotEmpty()
-  payment_type: PaymentType;
+  paymentType: PaymentType;
 
   @IsOptional()
   metadata?: PaymentMetadata;

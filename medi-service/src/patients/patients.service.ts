@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
-import { PrismaService } from '../common/prisma/prisma.service';
+import { InjectRepository } from '@mikro-orm/nestjs';
+import { EntityRepository } from '@mikro-orm/postgresql';
 import { RedisService } from '../common/redis/redis.service';
 import { UpdatePatientDto } from './dto/update-patient.dto';
+import { Patients } from '../entities/patients.entity';
+import { AuthUsers } from '../entities/auth-users.entity';
 
 @Injectable()
 export class PatientsService {
@@ -9,7 +12,10 @@ export class PatientsService {
   private readonly PROFILE_CACHE_TTL = 300; // 5 minutes
 
   constructor(
-    private readonly prisma: PrismaService,
+    @InjectRepository(Patients)
+    private readonly patientsRepo: EntityRepository<Patients>,
+    @InjectRepository(AuthUsers)
+    private readonly authUsersRepo: EntityRepository<AuthUsers>,
     private readonly redis: RedisService,
   ) {}
 
@@ -24,32 +30,30 @@ export class PatientsService {
     this.logger.log(`Profile cache miss for user ${userId}, fetching from DB`);
 
     // Fetch from database
-    const user = await this.prisma.auth_users.findUnique({
-      where: { id: userId },
-      include: {
-        patients: true,
-      },
-    });
+    const user = await this.authUsersRepo.findOne(
+      { id: userId },
+      { populate: ['patient'] }
+    );
 
     if (!user) {
       throw new NotFoundException('Patient not found');
     }
 
-    const patient = user.patients;
+    const patient = user.patient;
 
     const profile = {
       id: user.id,
-      phone_number: user.phone_number,
+      phoneNumber: user.phoneNumber,
       email: user.email,
       role: user.role,
-      is_active: user.is_active,
-      created_at: user.created_at,
-      full_name: patient?.full_name || 'Patient',
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      fullName: patient?.name || 'Patient',
       gender: patient?.gender,
-      dob: patient?.date_of_birth,
-      emergency_contact_name: patient?.emergency_contact_name,
-      emergency_contact_relation: patient?.emergency_contact_relation,
-      emergency_contact_phone: patient?.emergency_contact_phone,
+      dob: patient?.dateOfBirth,
+      emergencyContactName: patient?.emergencyContactName,
+      emergencyContactRelation: patient?.emergencyContactRelation,
+      emergencyContactPhone: patient?.emergencyContactPhone,
     };
 
     // Cache the profile
@@ -60,10 +64,10 @@ export class PatientsService {
 
   async updatePatientProfile(userId: string, updateDto: UpdatePatientDto) {
     // Check if user exists
-    const user = await this.prisma.auth_users.findUnique({
-      where: { id: userId },
-      include: { patients: true },
-    });
+    const user = await this.authUsersRepo.findOne(
+      { id: userId },
+      { populate: ['patient'] }
+    );
 
     if (!user) {
       throw new NotFoundException('Patient not found');
@@ -71,42 +75,31 @@ export class PatientsService {
 
     // Update email in auth_users if provided
     if (updateDto.email) {
-      await this.prisma.auth_users.update({
-        where: { id: userId },
-        data: { email: updateDto.email },
-      });
+      user.email = updateDto.email;
+      await this.authUsersRepo.getEntityManager().flush();
     }
 
     // Create or update patient record
-    const patientData = {
-      full_name: updateDto.full_name,
-      gender: updateDto.gender,
-      date_of_birth: updateDto.dob ? new Date(updateDto.dob) : undefined,
-      emergency_contact_name: updateDto.emergency_contact_name,
-      emergency_contact_relation: updateDto.emergency_contact_relation,
-      emergency_contact_phone: updateDto.emergency_contact_phone,
-    };
+    const patientData: any = {};
+    if (updateDto.fullName) patientData.name = updateDto.fullName;
+    if (updateDto.gender) patientData.gender = updateDto.gender;
+    if (updateDto.dob) patientData.date_of_birth = new Date(updateDto.dob);
+    if (updateDto.emergencyContactName) patientData.emergencyContactName = updateDto.emergencyContactName;
+    if (updateDto.emergencyContactRelation) patientData.emergencyContactRelation = updateDto.emergencyContactRelation;
+    if (updateDto.emergencyContactPhone) patientData.emergencyContactPhone = updateDto.emergencyContactPhone;
 
-    // Remove undefined values
-    const cleanedData = Object.fromEntries(
-      Object.entries(patientData).filter(([_, v]) => v !== undefined),
-    );
-
-    if (user.patients) {
+    if (user.patient) {
       // Update existing patient record
-      await this.prisma.patients.update({
-        where: { auth_user_id: userId },
-        data: cleanedData,
-      });
+      Object.assign(user.patient, patientData);
+      await this.patientsRepo.getEntityManager().flush();
     } else {
       // Create new patient record
-      await this.prisma.patients.create({
-        data: {
-          auth_user_id: userId,
-          full_name: updateDto.full_name || 'Patient',
-          ...cleanedData,
-        },
+      const patient = this.patientsRepo.create({
+        authUser: user,
+        name: updateDto.fullName || 'Patient',
+        ...patientData,
       });
+      await this.patientsRepo.getEntityManager().persistAndFlush(patient);
     }
 
     // Invalidate cache after update

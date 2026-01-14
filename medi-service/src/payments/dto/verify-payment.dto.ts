@@ -3,15 +3,15 @@ import { IsNotEmpty, IsString, IsUUID, IsOptional } from 'class-validator';
 export class VerifyPaymentDto {
   @IsOptional()
   @IsUUID()
-  payment_id?: string;
+  paymentId?: string;
 
   @IsOptional()
   @IsString()
-  provider_order_id?: string;
+  providerOrderId?: string;
 
   @IsOptional()
   @IsString()
-  provider_payment_id?: string;
+  providerPaymentId?: string;
 
   @IsOptional()
   @IsString()

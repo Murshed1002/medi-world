@@ -18,8 +18,8 @@ interface Payment {
   amount: number | string;
   currency: string;
   status: PaymentStatusType;
-  reference_type: string;
-  reference_id: string;
+  referenceType: string;
+  referenceId: string;
 }
 
 async function fetchPayment(id: string): Promise<Payment> {
@@ -82,17 +82,17 @@ export default function PaymentPageView({ paymentIntentId }: { paymentIntentId: 
       // Send payment verification data
       // Backend will determine if it's dev mode and bypass accordingly
       await apiClient.post(`/payments/${paymentIntentId}/verify`, {
-        payment_id: paymentIntentId,
-        provider_order_id: `order_${Date.now()}`,
-        provider_payment_id: `pay_${Date.now()}`,
+        paymentId: paymentIntentId,
+        providerOrderId: `order_${Date.now()}`,
+        providerPaymentId: `pay_${Date.now()}`,
         signature: `sig_${Date.now()}`,
       });
       
       setStatus('PAID');
       
       setTimeout(() => {
-        if (payment.reference_type === 'APPOINTMENT') {
-          router.push(`/patient/confirmation/${payment.reference_id}`);
+        if (payment.referenceType === 'APPOINTMENT') {
+          router.push(`/patient/confirmation/${payment.referenceId}`);
         }
       }, 1000);
       

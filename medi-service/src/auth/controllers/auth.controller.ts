@@ -167,7 +167,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async getSessions(@Req() req: any) {
     const sessions = await this.authService.getUserActiveSessions(
-      req.user.user_id,
+      req.user.userId,
     );
 
     return {
@@ -178,7 +178,7 @@ export class AuthController {
   @Delete('sessions/:sessionId')
   @UseGuards(JwtAuthGuard)
   async revokeSession(@Req() req: any, @Param('sessionId') sessionId: string) {
-    await this.authService.revokeSession(req.user.user_id, sessionId);
+    await this.authService.revokeSession(req.user.userId, sessionId);
 
     return {
       success: true,

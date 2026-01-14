@@ -8,7 +8,7 @@ export class UpdatePaymentDto {
 
   @IsEnum(PaymentMethod)
   @IsOptional()
-  payment_method?: PaymentMethod;
+  paymentMethod?: PaymentMethod;
 
   @IsEnum(PaymentProvider)
   @IsOptional()
@@ -16,9 +16,9 @@ export class UpdatePaymentDto {
 
   @IsString()
   @IsOptional()
-  provider_order_id?: string;
+  providerOrderId?: string;
 
   @IsString()
   @IsOptional()
-  provider_payment_id?: string;
+  providerPaymentId?: string;
 }

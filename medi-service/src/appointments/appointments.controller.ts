@@ -13,7 +13,7 @@ export class AppointmentsController {
     @Req() req,
     @Body() dto: CreateAppointmentDto,
   ) {
-    const authUserId = req.user.user_id;
+    const authUserId = req.user.userId;
 
     return this.service.createAppointment(authUserId, dto);
   }
