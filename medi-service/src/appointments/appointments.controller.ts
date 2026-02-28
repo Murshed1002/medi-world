@@ -20,12 +20,18 @@ export class AppointmentsController {
   
   @Get('getAll')
   @UseGuards(JwtAuthGuard)
-  async getAllAppointments(@CurrentUser() authUserId: string) {
-    return this.service.getAllAppointments(authUserId);
+  async getAllAppointments(@CurrentUser() authUser: any) {
+    return this.service.getAllAppointments(authUser.userId);
   }
 
-  @Get(':id')
+  @Get('getById/:id')
   async getAppointment(@Param('id') id: string) {
     return this.service.getAppointmentById(id);
+  }
+
+  @Get('getAllByUser')
+  @UseGuards(JwtAuthGuard)
+  async getAllAppointmentsByUser(@CurrentUser() authUser: any) {
+    return this.service.getAllAppointmentsByUser(authUser.userId);
   }
 }

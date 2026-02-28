@@ -9,6 +9,7 @@ import { DoctorClinics } from '../entities/doctor-clinics.entity';
 import { ClinicQueues } from '../entities/clinic-queues.entity';
 import { QueueEntries } from '../entities/queue-entries.entity';
 import { Payments } from '../entities/payments.entity';
+import { DoctorsModule } from 'src/doctors/doctors.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { Payments } from '../entities/payments.entity';
       Payments,
     ]),
     AuthModule,
+    DoctorsModule,
   ],
   controllers: [AppointmentsController],
   providers: [AppointmentsService],

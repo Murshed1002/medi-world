@@ -17,6 +17,7 @@ import { QueueEntries } from '../entities/queue-entries.entity';
 import { Payments } from '../entities/payments.entity';
 import { Clinics } from '../entities/clinics.entity';
 import { Doctors } from '../entities/doctors.entity';
+import { DoctorsService } from 'src/doctors/doctors.service';
 
 @Injectable()
 export class AppointmentsService {
@@ -34,6 +35,7 @@ export class AppointmentsService {
     @InjectRepository(Payments)
     private readonly paymentsRepo: EntityRepository<Payments>,
     private readonly em: EntityManager,
+    private doctorService: DoctorsService,
   ) {}
 
   async createAppointment(
@@ -261,5 +263,39 @@ export class AppointmentsService {
       populate: ['patient', 'doctor', 'clinic'],
       where: { patient },
     });
+  }
+
+  async getAllAppointmentsByUser(authUserId: string) {
+    const patient = await this.patientsRepo.findOne({ authUser: authUserId });
+    if (!patient) {
+      throw new BadRequestException('Patient profile not found');
+    }
+    const appointments = await this.appointmentsRepo.findAll({
+      populate: ['patient', 'doctor', 'clinic'],
+      where: { patient, status: { $nin: [AppointmentStatus.CANCELLED_BY_PATIENT, AppointmentStatus.CANCELLED_BY_DOCTOR, AppointmentStatus.PAYMENT_PENDING] } },
+      orderBy: { appointmentDate: 'DESC' },
+    });
+
+    // Transform appointments to include payment info
+    return appointments.map(appointment => ({
+      id: appointment.id,
+      appointmentDate: appointment.appointmentDate,
+      slotStartTime: appointment.slotStartTime,
+      slotEndTime: appointment.slotEndTime,
+      status: appointment.status,
+      tokenNumber: appointment.queueTokenNumber,
+      doctor: appointment.doctor ? {
+        id: appointment.doctor.id,
+        name: appointment.doctor.name,
+        gender: appointment.doctor.gender,
+        specialization: appointment.doctor.specialization,
+        avatarUrl: this.doctorService.getDefaultAvatar(appointment.doctor.gender), // Assuming this method exists in DoctorsService
+      } : null,
+      clinic: appointment.clinic ? {
+        id: appointment.clinic.id,
+        name: appointment.clinic.name,
+        address: appointment.clinic.address,
+      } : null,
+    }));
   }
 }
