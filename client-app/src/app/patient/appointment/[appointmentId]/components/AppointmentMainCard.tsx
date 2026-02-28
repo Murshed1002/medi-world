@@ -98,16 +98,16 @@ export default function AppointmentMainCard({
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="dark:text-gray-300">Consultation Fee</span>
-                <span className="font-medium">${appointment.payment.consultationFee.toFixed(2)}</span>
+                <span className="font-medium">₹{appointment.payment.consultationFee.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="dark:text-gray-300">Booking Fee</span>
-                <span className="font-medium">${appointment.payment.bookingFee.toFixed(2)}</span>
+                <span className="font-medium">₹{appointment.payment.bookingFee.toFixed(2)}</span>
               </div>
               <div className="my-2 h-px bg-[#e7f3eb] dark:bg-[#2a4533]"></div>
               <div className="flex justify-between text-base font-bold">
                 <span>Total Amount</span>
-                <span className="text-primary">${total.toFixed(2)}</span>
+                <span className="text-primary">₹{total.toFixed(2)}</span>
               </div>
             </div>
           </div>

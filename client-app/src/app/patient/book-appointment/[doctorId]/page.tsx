@@ -1,9 +1,8 @@
-import { redirect } from "next/navigation";
+import BookAppointmentPageView from './BookAppointmentPageView';
 
-export default async function Page({params}: {params: Promise<{ appointmentId: string }>}) {
-    //do the booking related call to backend
-    const { appointmentId } = await params;
-    const paymentIntentId = `apt-${appointmentId}`;
-    redirect(`/payment/${paymentIntentId}`);
+export default async function Page({params}: {params: Promise<{ doctorId: string }>}) {
+    const { doctorId } = await params;
+    return <BookAppointmentPageView doctorId={doctorId} />;
 }
+
 

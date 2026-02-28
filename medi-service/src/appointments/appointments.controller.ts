@@ -1,24 +1,31 @@
-import { Controller, Post, Body, Req, Get } from '@nestjs/common';
+import { Controller, Post, Body, Req, Get, Param, BadRequestException, UseGuards } from '@nestjs/common';
 import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 
 @Controller('appointments')
 export class AppointmentsController {
   constructor(private readonly service: AppointmentsService) {}
 
-  @Post()
+  @Post('create')
+  @UseGuards(JwtAuthGuard)
   async bookAppointment(
     @Req() req,
     @Body() dto: CreateAppointmentDto,
+    @CurrentUser() authUser: any,
   ) {
-    const patientId = req.user.id;
-
-    return this.service.createAppointment(patientId, dto);
+    return this.service.createAppointment(authUser.userId, dto);
+  }
+  
+  @Get('getAll')
+  @UseGuards(JwtAuthGuard)
+  async getAllAppointments(@CurrentUser() authUserId: string) {
+    return this.service.getAllAppointments(authUserId);
   }
 
-  @Get('getAll')
-  async getAllAppointments() {
-    // Implementation for fetching all appointments
-    return this.service.getAllAppointments();
+  @Get(':id')
+  async getAppointment(@Param('id') id: string) {
+    return this.service.getAppointmentById(id);
   }
 }

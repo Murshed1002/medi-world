@@ -4,7 +4,7 @@ export type PaymentStatusType = "CREATED" | "PAID" | "FAILED" | "PENDING";
 export type PaymentIntent = {
   id: string;
   purpose: PaymentPurpose;
-  reference_id: string;
+  referenceId: string;
   amount: number;
   currency: string;
   status: PaymentStatusType;
