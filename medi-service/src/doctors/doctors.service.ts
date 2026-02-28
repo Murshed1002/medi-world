@@ -6,6 +6,7 @@ import { GetDoctorsQueryDto } from './dto/get-doctors-query.dto';
 import { Doctors } from '../entities/doctors.entity';
 import { Appointments } from '../entities/appointments.entity';
 import { DoctorSlots } from '../entities/doctor-slots.entity';
+import { DateTime } from 'luxon';
 
 @Injectable()
 export class DoctorsService {
@@ -279,7 +280,7 @@ export class DoctorsService {
 
   // Removed getOrderBy - sorting applied in-memory after transformation
 
-  async getAvailableSlots(doctorId: string, dateStr: string): Promise<string[]> {
+  async getAvailableSlots(doctorId: string, dateStr: string, timezone: string): Promise<string[]> {
     const selectedDate = new Date(dateStr);
     selectedDate.setHours(0, 0, 0, 0);
     
@@ -344,6 +345,9 @@ export class DoctorsService {
     let currentMinutes = startHours * 60 + startMinutes;
     const endTotalMinutes = endHours * 60 + endMinutes;
 
+    // Parse user's current time from timezone header (ISO format expected)
+    const userCurrentTime = timezone ? DateTime.now().setZone(timezone).toJSDate() : new Date();
+    
     while (currentMinutes + duration <= endTotalMinutes) {
       const hours = Math.floor(currentMinutes / 60);
       const minutes = currentMinutes % 60;
@@ -361,7 +365,11 @@ export class DoctorsService {
         return aptHours === hours && aptMinutes === minutes;
       });
 
-      if (!isBooked) {
+      // Create full datetime for this slot
+      const slotDateTime = new Date(`${dateStr}T${hours.toString().padStart(2, '0')}:${displayMinutes}:00`);
+      
+      // Only include slots that are not booked and are in the future
+      if (!isBooked && slotDateTime > userCurrentTime) {
         slots.push(timeSlot);
       }
 

@@ -102,7 +102,6 @@ export class AppointmentsService {
         appointmentDate,
         slotStartTime: dto.slotStartTime,
         status: { $nin: [AppointmentStatus.CANCELLED_BY_PATIENT, AppointmentStatus.CANCELLED_BY_DOCTOR] },
-        patient: { $ne: patient }, // Exclude this patient's appointments
       });
 
       if (exists > 0) {

@@ -1,16 +1,15 @@
 import { Injectable, OnModuleDestroy, Logger } from '@nestjs/common';
 import Redis from 'ioredis';
-import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class RedisService implements OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
   private readonly client: Redis;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor() {
     const redisConfig: any = {
-      host: this.configService.get('REDIS_HOST', 'localhost'),
-      port: this.configService.get('REDIS_PORT', 6379),
+      host: process.env.REDIS_HOST || 'localhost',
+      port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT, 10) : 6379,
       retryStrategy: (times) => {
         const delay = Math.min(times * 50, 2000);
         return delay;
@@ -18,13 +17,13 @@ export class RedisService implements OnModuleDestroy {
     };
 
     // Only add password if provided (not required for local dev)
-    const password = this.configService.get('REDIS_PASSWORD');
+    const password = process.env.REDIS_PASSWORD;
     if (password) {
       redisConfig.password = password;
     }
 
     // Only add db if provided (AWS ElastiCache cluster mode doesn't support multiple DBs)
-    const db = this.configService.get('REDIS_DB');
+    const db = process.env.REDIS_DB;
     if (db !== undefined && db !== null && db !== '') {
       redisConfig.db = parseInt(db, 10);
     }

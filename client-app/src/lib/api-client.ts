@@ -5,6 +5,7 @@ const apiClient = axios.create({
   withCredentials: true, // Send cookies with every request
   headers: {
     'Content-Type': 'application/json',
+    'X-Timezone': Intl.DateTimeFormat().resolvedOptions().timeZone, // Send client's timezone
   },
 });
 

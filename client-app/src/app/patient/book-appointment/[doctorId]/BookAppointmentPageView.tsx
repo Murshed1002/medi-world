@@ -102,7 +102,7 @@ export default function BookAppointmentPageView({ doctorId }: { doctorId: string
 
       console.log('Booking appointment with payload:', payload);
 
-      const response = await apiClient.post('/appointments', payload);
+      const response = await apiClient.post('/appointments/create', payload);
 
       // Redirect to payment page
       router.push(`/payment/${response.data.paymentId}`);

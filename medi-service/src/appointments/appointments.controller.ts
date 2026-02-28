@@ -7,7 +7,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 export class AppointmentsController {
   constructor(private readonly service: AppointmentsService) {}
 
-  @Post()
+  @Post('create')
   @UseGuards(JwtAuthGuard)
   async bookAppointment(
     @Req() req,

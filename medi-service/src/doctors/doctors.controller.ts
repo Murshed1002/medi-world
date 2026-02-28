@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Param, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Query, Param, NotFoundException, BadRequestException, Headers } from '@nestjs/common';
 import { DoctorsService } from './doctors.service';
 import { GetDoctorsQueryDto } from './dto/get-doctors-query.dto';
 
@@ -15,6 +15,7 @@ export class DoctorsController {
   async getAvailableSlots(
     @Param('id') id: string,
     @Query('date') date: string,
+    @Headers('x-timezone') timezone: string,
   ) {
     // Validate UUID format
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,7 +27,7 @@ export class DoctorsController {
       throw new BadRequestException('Date parameter is required (format: YYYY-MM-DD)');
     }
 
-    const slots = await this.doctorsService.getAvailableSlots(id, date);
+    const slots = await this.doctorsService.getAvailableSlots(id, date, timezone);
     return { slots };
   }
 

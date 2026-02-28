@@ -77,105 +77,105 @@ export default function PaymentPageView({ paymentIntentId }: { paymentIntentId: 
       // DEVELOPMENT MODE - Mock Payment (Currently Active)
       // ============================================================================
       // Simulate payment gateway response time
-      await new Promise((r) => setTimeout(r, 1200));
+      // await new Promise((r) => setTimeout(r, 1200));
       
       // Send payment verification data
       // Backend will determine if it's dev mode and bypass accordingly
-      await apiClient.post(`/payments/${paymentIntentId}/verify`, {
-        paymentId: paymentIntentId,
-        providerOrderId: `order_${Date.now()}`,
-        providerPaymentId: `pay_${Date.now()}`,
-        signature: `sig_${Date.now()}`,
-      });
+      // await apiClient.post(`/payments/${paymentIntentId}/verify`, {
+      //   paymentId: paymentIntentId,
+      //   providerOrderId: `order_${Date.now()}`,
+      //   providerPaymentId: `pay_${Date.now()}`,
+      //   signature: `sig_${Date.now()}`,
+      // });
       
-      setStatus('PAID');
+      // setStatus('PAID');
       
-      setTimeout(() => {
-        if (payment.referenceType === 'APPOINTMENT') {
-          router.push(`/patient/confirmation/${payment.referenceId}`);
-        }
-      }, 1000);
+      // setTimeout(() => {
+      //   if (payment.referenceType === 'APPOINTMENT') {
+      //     router.push(`/patient/confirmation/${payment.referenceId}`);
+      //   }
+      // }, 1000);
       
       // ============================================================================
       // PRODUCTION MODE - Razorpay Integration (Commented Out)
       // ============================================================================
       // Step 1: Load Razorpay SDK dynamically (if not already loaded)
-      // const loadRazorpay = () => {
-      //   return new Promise((resolve) => {
-      //     const script = document.createElement('script');
-      //     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      //     script.onload = () => resolve(true);
-      //     script.onerror = () => resolve(false);
-      //     document.body.appendChild(script);
-      //   });
-      // };
-      //
-      // const razorpayLoaded = await loadRazorpay();
-      // if (!razorpayLoaded) {
-      //   throw new Error('Failed to load Razorpay SDK');
-      // }
-      //
+      const loadRazorpay = () => {
+        return new Promise((resolve) => {
+          const script = document.createElement('script');
+          script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+          script.onload = () => resolve(true);
+          script.onerror = () => resolve(false);
+          document.body.appendChild(script);
+        });
+      };
+      
+      const razorpayLoaded = await loadRazorpay();
+      if (!razorpayLoaded) {
+        throw new Error('Failed to load Razorpay SDK');
+      }
+      
       // Step 2: Create Razorpay order from backend
-      // const orderResponse = await apiClient.post(`/payments/${paymentIntentId}/create-order`);
-      // const { provider_order_id, amount, currency } = orderResponse.data;
-      //
+      const orderResponse = await apiClient.post(`/payments/${paymentIntentId}/create-order`);
+      const { providerOrderId, amount, currency, key } = orderResponse.data;
+      
       // Step 3: Configure Razorpay options
-      // const options = {
-      //   key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID, // Add to .env.local
-      //   amount: amount * 100, // Razorpay expects amount in paise
-      //   currency: currency,
-      //   name: 'MediWorld',
-      //   description: payment.reference_type === 'APPOINTMENT' ? 'Appointment Booking' : 'Payment',
-      //   order_id: provider_order_id,
-      //   handler: async (response: any) => {
-      //     // Payment successful - verify with backend
-      //     try {
-      //       await apiClient.post(`/payments/${paymentIntentId}/verify`, {
-      //         payment_id: paymentIntentId,
-      //         provider_order_id: response.razorpay_order_id,
-      //         provider_payment_id: response.razorpay_payment_id,
-      //         signature: response.razorpay_signature,
-      //       });
-      //       
-      //       setStatus('PAID');
-      //       
-      //       setTimeout(() => {
-      //         if (payment.reference_type === 'APPOINTMENT') {
-      //           router.push(`/patient/confirmation/${payment.reference_id}`);
-      //         }
-      //       }, 1000);
-      //     } catch (err) {
-      //       console.error('Payment verification failed:', err);
-      //       setStatus('FAILED');
-      //     }
-      //   },
-      //   modal: {
-      //     ondismiss: () => {
-      //       // User closed the payment modal
-      //       setStatus('FAILED');
-      //     }
-      //   },
-      //   prefill: {
-      //     name: '', // Get from user profile
-      //     email: '', // Get from user profile
-      //     contact: '', // Get from user profile
-      //   },
-      //   theme: {
-      //     color: '#16a34a', // Green-600 to match our theme
-      //   },
-      //   retry: {
-      //     enabled: true,
-      //     max_count: 3,
-      //   },
-      // };
-      //
+      const options = {
+        key: key, // Add to .env.local
+        amount: amount * 100, // Razorpay expects amount in paise
+        currency: currency,
+        name: 'MediWorld',
+        description: payment.referenceType === 'APPOINTMENT' ? 'Appointment Booking' : 'Payment',
+        order_id: providerOrderId,
+        handler: async (response: any) => {
+          // Payment successful - verify with backend
+          try {
+            await apiClient.post(`/payments/${paymentIntentId}/verify`, {
+              paymentId: paymentIntentId,
+              providerOrderId: response.razorpay_order_id,
+              providerPaymentId: response.razorpay_payment_id,
+              signature: response.razorpay_signature,
+            });
+            
+            setStatus('PAID');
+            
+            setTimeout(() => {
+              if (payment.referenceType === 'APPOINTMENT') {
+                router.push(`/patient/confirmation/${payment.referenceId}`);
+              }
+            }, 1000);
+          } catch (err) {
+            console.error('Payment verification failed:', err);
+            setStatus('FAILED');
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            // User closed the payment modal
+            setStatus('FAILED');
+          }
+        },
+        prefill: {
+          name: '', // Get from user profile
+          email: '', // Get from user profile
+          contact: '', // Get from user profile
+        },
+        theme: {
+          color: '#16a34a', // Green-600 to match our theme
+        },
+        retry: {
+          enabled: true,
+          max_count: 3,
+        },
+      };
+      
       // Step 4: Open Razorpay payment modal
-      // const razorpay = new (window as any).Razorpay(options);
-      // razorpay.on('payment.failed', (response: any) => {
-      //   console.error('Payment failed:', response.error);
-      //   setStatus('FAILED');
-      // });
-      // razorpay.open();
+      const razorpay = new (window as any).Razorpay(options);
+      razorpay.on('payment.failed', (response: any) => {
+        console.error('Payment failed:', response.error);
+        setStatus('FAILED');
+      });
+      razorpay.open();
       
       // ============================================================================
       // PRODUCTION MODE - Stripe Integration (Alternative - Commented Out)
@@ -223,7 +223,6 @@ export default function PaymentPageView({ paymentIntentId }: { paymentIntentId: 
       //     }
       //   }, 1000);
       // }
-      
     } catch (err) {
       console.error('Payment failed:', err);
       setStatus('FAILED');
