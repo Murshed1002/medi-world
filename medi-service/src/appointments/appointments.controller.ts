@@ -2,6 +2,7 @@ import { Controller, Post, Body, Req, Get, Param, BadRequestException, UseGuards
 import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 
 @Controller('appointments')
 export class AppointmentsController {
@@ -12,16 +13,14 @@ export class AppointmentsController {
   async bookAppointment(
     @Req() req,
     @Body() dto: CreateAppointmentDto,
+    @CurrentUser() authUser: any,
   ) {
-    const authUserId = req.user.userId;
-
-    return this.service.createAppointment(authUserId, dto);
+    return this.service.createAppointment(authUser.userId, dto);
   }
-
+  
   @Get('getAll')
   @UseGuards(JwtAuthGuard)
-  async getAllAppointments(@Req() req) {
-    const authUserId = req.user.userId;
+  async getAllAppointments(@CurrentUser() authUserId: string) {
     return this.service.getAllAppointments(authUserId);
   }
 
