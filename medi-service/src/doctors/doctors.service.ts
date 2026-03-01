@@ -264,7 +264,7 @@ export class DoctorsService {
       supportsVideo: false,
       isFemale: false,
       bio: 'Experienced medical professional dedicated to providing quality care.',
-      qualifications: doctor.licenseNumber || 'MBBS, MD',
+      qualifications: doctor.qualifications || 'MBBS, MD',
       experienceYears: doctor.experienceYears || 0,
       totalPatients,
       email: doctor.email,

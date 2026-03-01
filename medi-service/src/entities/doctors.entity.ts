@@ -44,4 +44,7 @@ export class Doctors {
 
   @OneToMany(() => DoctorClinics, dc => dc.doctor)
   doctorClinics = new Collection<DoctorClinics>(this);
+
+  @Property({ length: 255, nullable: true })
+  qualifications?: string;
 }

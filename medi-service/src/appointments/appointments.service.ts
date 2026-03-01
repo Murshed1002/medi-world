@@ -216,8 +216,12 @@ export class AppointmentsService {
   async getAppointmentById(appointmentId: string) {
     const appointment = await this.appointmentsRepo.findOne(
       { id: appointmentId },
-      { populate: ['doctor', 'clinic'] }
+      { populate: ['doctor', 'clinic', 'patient'] }
     );
+    const doctorClinic = await this.doctorClinicsRepo.findOne({
+      doctor: appointment?.doctor,
+      clinic: appointment?.clinic,
+    });
     
     if (!appointment) {
       throw new NotFoundException(`Appointment with ID ${appointmentId} not found`);
@@ -237,19 +241,37 @@ export class AppointmentsService {
       slotEndTime: appointment.slotEndTime,
       status: appointment.status,
       tokenNumber: appointment.queueTokenNumber,
+      bookingFeeAmount: appointment.bookingFeeAmount,
+      consultationFeeAmount: doctorClinic?.consultationFee,
       doctor: appointment.doctor ? {
         id: appointment.doctor.id,
         name: appointment.doctor.name,
         specialization: appointment.doctor.specialization,
+        avatarUrl: this.doctorService.getDefaultAvatar(appointment.doctor.gender),
+        qualifications: appointment.doctor.qualifications,
       } : null,
       clinic: appointment.clinic ? {
         id: appointment.clinic.id,
         name: appointment.clinic.name,
         address: appointment.clinic.address,
+        latitude: appointment.clinic.latitude,
+        longitude: appointment.clinic.longitude,
+        city: appointment.clinic.city,
       } : null,
       payment: payment ? {
         amount: Number(payment.amount),
         status: payment.status,
+      } : null,
+      patient: appointment.patient ? {
+        id: appointment.patient.id,
+        name: appointment.patient.name,
+        email: appointment.patient.email,
+        phoneNumber: appointment.patient.phoneNumber,
+        gender: appointment.patient.gender,
+        age: appointment.patient.dateOfBirth ? Math.floor((new Date().getTime() - new Date(appointment.patient.dateOfBirth).getTime()) / (1000 * 60 * 60 * 24 * 365.25)) : null,
+        guardianName: appointment.patient.emergencyContactName,
+        guardianPhoneNumber: appointment.patient.emergencyContactPhone,
+        guardianRelationship: appointment.patient.emergencyContactRelation,
       } : null,
     };
   }
