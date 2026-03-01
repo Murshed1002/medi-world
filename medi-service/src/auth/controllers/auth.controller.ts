@@ -17,6 +17,8 @@ import { SendOtpDto } from '../dto/send-otp.dto';
 import { VerifyOtpDto } from '../dto/verify-otp.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard';
+const JWT_ACCESS_TOKEN_TTL = 15 * 60 * 1000; // 15 minutes
+const JWT_REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000;
 
 @Controller('auth')
 export class AuthController {
@@ -65,16 +67,17 @@ export class AuthController {
     // Set HTTP-only cookies
     res.cookie('access_token', authResult.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === 'prod',
       sameSite: 'lax',
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: JWT_ACCESS_TOKEN_TTL,
     });
 
     res.cookie('refresh_token', authResult.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === 'prod',
       sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      path: '/auth/refresh',
+      maxAge: JWT_REFRESH_TOKEN_TTL,
     });
 
     return {
@@ -110,16 +113,17 @@ export class AuthController {
     // Set new HTTP-only cookies
     res.cookie('access_token', tokens.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === 'prod',
       sameSite: 'lax',
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: JWT_ACCESS_TOKEN_TTL,
     });
 
     res.cookie('refresh_token', tokens.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === 'prod',
       sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      path: '/auth/refresh',
+      maxAge: JWT_REFRESH_TOKEN_TTL,
     });
 
     return {

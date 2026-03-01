@@ -132,26 +132,26 @@ export class PaymentController {
     );
 
     // Check if we're in development mode (backend determines this, not frontend)
-    const isDevelopment = process.env.NODE_ENV === 'dev';
+    // const isDevelopment = process.env.NODE_ENV === 'dev';
 
     // In development mode, bypass actual verification but still process the payment
-    if (isDevelopment) {
-      await this.paymentService.updatePayment(id, {
-        status: 'SUCCESS' as any,
-        provider: (payment.provider || PaymentProvider.RAZORPAY) as any,
-        providerPaymentId: verifyPaymentDto.providerPaymentId || `dev_bypass_${Date.now()}`,
-      });
+    // if (isDevelopment) {
+    //   await this.paymentService.updatePayment(id, {
+    //     status: 'SUCCESS' as any,
+    //     provider: (payment.provider || PaymentProvider.RAZORPAY) as any,
+    //     providerPaymentId: verifyPaymentDto.providerPaymentId || `dev_bypass_${Date.now()}`,
+    //   });
 
-      // Confirm the appointment if it's an appointment payment
-      if (payment.referenceType === 'APPOINTMENT') {
-        await this.appointmentsService.confirmAppointment(payment.referenceId);
-      }
+    //   // Confirm the appointment if it's an appointment payment
+    //   if (payment.referenceType === 'APPOINTMENT') {
+    //     await this.appointmentsService.confirmAppointment(payment.referenceId);
+    //   }
 
-      return {
-        success: true,
-        message: 'Payment verified successfully (development mode)',
-      };
-    }
+    //   return {
+    //     success: true,
+    //     message: 'Payment verified successfully (development mode)',
+    //   };
+    // }
 
     // Production: Validate required fields
     if (!verifyPaymentDto.providerOrderId || !verifyPaymentDto.providerPaymentId || !verifyPaymentDto.signature) {

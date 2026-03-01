@@ -44,6 +44,14 @@ apiClient.interceptors.response.use(
         }
         return Promise.reject(refreshError);
       }
+    }else if(error.response?.status === 401 && originalRequest._retry){
+      // If we already tried refreshing and still get 401, redirect to login
+      if (typeof window !== 'undefined') {
+        const currentPath = window.location.pathname;
+        if (!currentPath.includes('/login') && !currentPath.includes('/verify-otp')) {
+          window.location.href = '/patient/login';
+        }
+      }
     }
 
     return Promise.reject(error);

@@ -44,7 +44,7 @@ export default function ConfirmationPageView({ appointmentId }: { appointmentId:
   useEffect(() => {
     const fetchAppointment = async () => {
       try {
-        const response = await apiClient.get(`/appointments/${appointmentId}`);
+        const response = await apiClient.get(`/appointments/getByID/${appointmentId}`);
         setAppointment(response.data);
       } catch (err) {
         console.error('Failed to fetch appointment:', err);

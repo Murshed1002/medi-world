@@ -11,6 +11,9 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import type { JwtPayload, AuthTokens, DeviceInfo } from '../types/auth.types';
 
+const JWT_ACCESS_TOKEN_TTL = '15m'; // 15 minutes
+const JWT_REFRESH_TOKEN_TTL = 30 * 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -125,7 +128,7 @@ export class AuthService {
     // Generate access token (15 minutes)
     const access_token = this.jwtService.sign(payload, {
       secret: process.env.JWT_ACCESS_SECRET || 'access-secret-key',
-      expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
+      expiresIn: JWT_ACCESS_TOKEN_TTL,
     } as any);
 
     // Generate refresh token (30 days)
@@ -133,7 +136,7 @@ export class AuthService {
     const refreshTokenHash = await bcrypt.hash(refresh_token, 10);
 
     const expiresAt = new Date(
-      Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+      Date.now() + JWT_REFRESH_TOKEN_TTL, // 30 days
     );
 
     // Store refresh token
