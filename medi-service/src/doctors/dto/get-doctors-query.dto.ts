@@ -38,8 +38,9 @@ export class GetDoctorsQueryDto {
     if (value === 'false') return false;
     return value;
   })
-  @IsBoolean()
-  isFemale?: boolean;
+  @IsOptional()
+  @IsString()
+  gender?: 'male' | 'female';
 
   @IsOptional()
   @IsString()

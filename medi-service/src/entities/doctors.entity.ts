@@ -47,4 +47,7 @@ export class Doctors {
 
   @Property({ length: 255, nullable: true })
   qualifications?: string;
+
+  @Property({ length: 255, nullable: true })
+  supportsVideo?: boolean;
 }

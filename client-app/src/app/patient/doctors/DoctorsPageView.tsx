@@ -59,7 +59,7 @@ export default function DoctorsPageView() {
         }
         
         if (femaleDoctor) {
-          params.append('isFemale', 'true');
+          params.append('gender', 'female');
         }
         
         // Map sort to API params

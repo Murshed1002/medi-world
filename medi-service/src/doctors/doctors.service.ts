@@ -98,8 +98,8 @@ export class DoctorsService {
           avatarUrl: this.getDefaultAvatar(doctor.gender),
           online: hasAppointmentsToday > 0,
           city: null,
-          supportsVideo: false,
-          isFemale: false,
+          supportsVideo: doctor.supportsVideo,
+          isFemale: doctor.gender?.toLowerCase() === 'female',
         };
       }),
     );
@@ -407,7 +407,7 @@ export class DoctorsService {
 
   public getDefaultAvatar(gender?: string | null): string {
     // Female avatar
-    if (gender === 'FEMALE') {
+    if (gender?.toLowerCase() === 'female') {
       return 'https://lh3.googleusercontent.com/aida-public/AB6AXuDFLhDweYIPeaWTMZf4XESSyCFmcQRjA7e2bSIeoMY-869jaVRqcjLOJTWPTMikWBOEhTsC5hhPkILz1PIRNoXgZR6ZGKKf0o8Xic2aZR0qXDIeVFYQ-W70O1ZqcJVfVbFRJIqALsnzQ-G5xaQBuO-5fBA1lq8wsBOw-mi82k5FT7e6sh0qNMadyaLolHdgLmCYBWmJv4Dx_5Wyj5MC005rNJgLSuUoRcSN5weM53yY9ne5tjIVHV1rWKy0-Z68Mb11hXlLwKdN1_Q';
     }
     // Male avatar (default)
