@@ -83,8 +83,8 @@ export default function AppointmentMainCard({
                 <PersonIcon className="text-[20px]" />
                 <span className="text-sm font-semibold uppercase tracking-wide">Patient</span>
               </div>
-              <p className="text-base font-bold">{appointment.patient.name}</p>
-              <p className="text-sm text-text-secondary">Age: {appointment.patient.age} • {appointment.patient.gender}</p>
+              <p className="text-base font-bold">{appointment.patientFullName || 'Not Available'}</p>
+              <p className="text-sm text-text-secondary">Age: {appointment.patientAge || 'N/A'} • {appointment.patientGender || 'N/A'}</p>
             </div>
 
             <div className="group flex flex-col gap-1 pt-4 border-t border-[#f0f7f2] dark:border-white/5 sm:border-t-0 sm:pt-0">
@@ -92,8 +92,8 @@ export default function AppointmentMainCard({
                 <SupervisorAccountIcon className="text-[20px]" />
                 <span className="text-sm font-semibold uppercase tracking-wide">Guardian</span>
               </div>
-              <p className="text-base font-bold">{appointment.patient.guardianName}</p>
-              <p className="text-sm text-text-secondary">Relationship: {appointment.patient.guardianRelationship}</p>
+              <p className="text-base font-bold">{appointment.guardianName || 'Not Available'}</p>
+              <p className="text-sm text-text-secondary">Relationship: {appointment.guardianRelation || 'N/A'}</p>
             </div>
           </div>
 

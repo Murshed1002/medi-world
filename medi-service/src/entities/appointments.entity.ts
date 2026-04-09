@@ -28,6 +28,27 @@ export class Appointments {
   @Property({ type: 'time', fieldName: 'slot_end_time' })
   slotEndTime!: string;
 
+  @Property({ length: 255, fieldName: 'patient_full_name' })
+  patientFullName!: string;
+
+  @Property({ fieldName: 'patient_age' })
+  patientAge!: number;
+
+  @Property({ length: 10, fieldName: 'patient_gender' })
+  patientGender!: string;
+
+  @Property({ length: 20, fieldName: 'patient_phone' })
+  patientPhone!: string;
+
+  @Property({ length: 255, nullable: true, fieldName: 'guardian_name' })
+  guardianName?: string;
+
+  @Property({ length: 20, nullable: true, fieldName: 'guardian_phone' })
+  guardianPhone?: string;
+
+  @Property({ length: 30, nullable: true, fieldName: 'guardian_relation' })
+  guardianRelation?: string;
+
   @Property({ length: 30 })
   status!: string;
 

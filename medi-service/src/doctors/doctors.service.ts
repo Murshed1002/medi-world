@@ -24,16 +24,6 @@ export class DoctorsService {
   ) {}
 
   async getDoctors(queryDto: GetDoctorsQueryDto) {
-    // Generate cache key based on filters
-    const cacheKey = `doctors:list:${JSON.stringify(queryDto)}`;
-
-    // Try cache first
-    const cached = await this.redis.get(cacheKey);
-    if (cached) {
-      this.logger.log('Doctors list cache hit');
-      return JSON.parse(cached);
-    }
-
     this.logger.log('Doctors list cache miss, fetching from DB');
 
     // Build where clause for MikroORM
@@ -131,14 +121,6 @@ export class DoctorsService {
         queryDto.sortOrder === 'asc' ? a.reviews - b.reviews : b.reviews - a.reviews,
       );
     }
-
-    // Cache the result
-    await this.redis.set(
-      cacheKey,
-      JSON.stringify(filtered),
-      this.DOCTORS_CACHE_TTL,
-    );
-
     return filtered;
   }
 

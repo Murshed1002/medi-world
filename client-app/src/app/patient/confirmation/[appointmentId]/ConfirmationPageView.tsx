@@ -18,6 +18,7 @@ interface Appointment {
   slotEndTime: string;
   status: string;
   tokenNumber: number;
+  patientFullName?: string;
   doctor: {
     id: string;
     name: string;
@@ -131,6 +132,18 @@ export default function ConfirmationPageView({ appointmentId }: { appointmentId:
           </h2>
 
           <div className="space-y-4">
+            {appointment.patientFullName && (
+              <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                <PersonIcon className="text-primary mt-1" />
+                <div className="flex-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Patient</p>
+                  <p className="font-medium text-slate-900 dark:text-white">
+                    {appointment.patientFullName}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
               <PersonIcon className="text-primary mt-1" />
               <div className="flex-1">

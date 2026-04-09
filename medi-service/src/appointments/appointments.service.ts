@@ -122,6 +122,13 @@ export class AppointmentsService {
         appointmentDate,
         slotStartTime,
         slotEndTime,
+        patientFullName: dto.patientFullName,
+        patientAge: dto.patientAge,
+        patientGender: dto.patientGender,
+        patientPhone: dto.patientPhone,
+        guardianName: dto.guardianName,
+        guardianPhone: dto.guardianPhone,
+        guardianRelation: dto.guardianRelation,
         status: AppointmentStatus.PAYMENT_PENDING,
         bookingFeeAmount: bookingFee,
       });
@@ -243,6 +250,12 @@ export class AppointmentsService {
       tokenNumber: appointment.queueTokenNumber,
       bookingFeeAmount: appointment.bookingFeeAmount,
       consultationFeeAmount: doctorClinic?.consultationFee,
+      patientFullName: appointment.patientFullName,
+      patientAge: appointment.patientAge,
+      patientGender: appointment.patientGender,
+      guardianName: appointment.guardianName,
+      guardianPhone: appointment.guardianPhone,
+      guardianRelation: appointment.guardianRelation,
       doctor: appointment.doctor ? {
         id: appointment.doctor.id,
         name: appointment.doctor.name,
@@ -301,6 +314,7 @@ export class AppointmentsService {
     // Transform appointments to include payment info
     return appointments.map(appointment => ({
       id: appointment.id,
+      patientFullName: appointment.patientFullName,
       appointmentDate: appointment.appointmentDate,
       slotStartTime: appointment.slotStartTime,
       slotEndTime: appointment.slotEndTime,

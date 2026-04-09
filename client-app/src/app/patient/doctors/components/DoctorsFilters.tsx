@@ -123,20 +123,22 @@ export default function DoctorsFilters({
         <div className="absolute top-full left-0 mt-2 w-64 bg-white dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl shadow-xl p-4 z-20 text-left">
           <div className="space-y-4">
             <div className="flex justify-between text-xs text-text-secondary">
-              <span>Min: ₹0</span>
-              <span>Max: ₹500+</span>
+              <span>₹0</span>
+              <span>₹10,000+</span>
             </div>
             <input
               className="w-full h-6 appearance-none cursor-pointer accent-primary rounded-lg"
               type="range"
               min={0}
-              max={500}
-              step={10}
+              max={10000}
+              step={100}
               value={priceMax}
               onChange={(e) => setPriceMax(Number(e.target.value))}
             />
-            <div className="flex justify-between items-center pt-2">
-              <span className="text-sm font-bold text-text-main dark:text-white">₹0 - ₹{priceMax}</span>
+            <p className="text-sm font-bold text-text-main dark:text-white text-center">
+              ₹0 — ₹{priceMax.toLocaleString('en-IN')}
+            </p>
+            <div className="flex justify-end items-center pt-2">
               <button
                 className="text-xs text-primary font-bold hover:underline"
                 onClick={() => setOpenFilter(null)}

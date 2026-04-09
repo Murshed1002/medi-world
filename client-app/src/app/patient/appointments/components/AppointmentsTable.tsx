@@ -9,6 +9,7 @@ export default function AppointmentsTable({ rows, onRowClick }: { rows: any[]; o
           <tr className="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/30">
             <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 w-16">Avatar</th>
             <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Doctor</th>
+            <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Patient Name</th>
             <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Date & Time</th>
             <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Status</th>
             <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 text-right">Action</th>
@@ -37,6 +38,11 @@ export default function AppointmentsTable({ rows, onRowClick }: { rows: any[]; o
                 <div className="flex flex-col">
                   <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{r.doctor.name}</span>
                   <span className="text-xs text-slate-500 dark:text-slate-400">{r.doctor.specialization}</span>
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{r.patientFullName || 'Not Available'}</span>
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
